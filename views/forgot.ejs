@@ -1,0 +1,30 @@
+<%- include ("top.ejs") %>
+
+<div class="col-6">
+  <form action="/forgot" method="POST">
+
+    <div class="form-group mt-4 mb-3">
+      <label for="name">Digite email de cadastro para receber uma nova senha :</label>
+      <input type="email" name="email" class="form-control" placeholder=Email de Usuário" />
+      </div>
+
+             <input type="submit" value="Enviar" class="btn btn-primary mb-3"  />
+        </form>
+      </hr>
+
+      <% if(message){ %>
+       
+        <div class="alert alert-danger">
+          <%= message %>
+        </div>
+     <% } %>
+
+     <p>
+       <a href="/users/new">Não possuiu Cadastro?</a>
+     </p>
+
+     
+   
+  <%- include("bottom.ejs") %>
+
+  

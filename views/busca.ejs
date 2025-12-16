@@ -1,0 +1,98 @@
+<%- include("top.ejs") %>
+<style>
+  body {
+      background-color: rgb(26, 26, 30);
+      color: white;
+  }
+
+  .form-control, .form-group label, .btn, .input-group select {
+      background-color: black;
+      color: rgb(160, 159, 159);
+      border: 1px solid rgb(29, 28, 28);
+  }
+
+  .btn-primary {
+      background-color: #8239E9;
+     
+  }
+
+  .btn-secondary {
+      background-color: #e62323;
+      
+  }
+
+  .btn {
+      color: white;
+
+      .btn-success{
+          background-color: #06580a;
+      
+  }
+
+  .btn {
+      color: white;
+
+      }
+
+      
+
+      
+      
+
+     
+  }
+</style>
+
+<div class="col-6">
+  <div class="row mb-3">
+    <div class="form-group">
+      <h1>Busca OS</h1>
+      <form method="POST" action="/busca">
+        <div class="input-group">
+          <input type="text" name="query" placeholder="Digite um nome" class="form-control">
+          <button type="submit" class="btn btn-primary">Pesquisar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <table class="table table-striped table-hover">
+    <thead class="table-dark">
+      <tr>
+        <th>Nome</th>
+        <th>Email</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (results.length > 0) { %>
+        <% results.forEach(client => { %>
+          <tr>
+            <td><a href="/os/edit/<%= client._id %>"><%= client.name %></a></td>
+           
+            <td><%= client.email %></td>
+            <td>
+              <center>
+                <a href="/users/delete/<%= client._id %>" title="Excluir" class="btn btn-danger"
+                  onclick="return confirm('Tem certeza que deseja excluir esse usuário?')">
+                  <img src="/images/eraser.png" />
+                </a>
+              </center>
+            </td>
+          </tr>
+        <% }); %>
+      <% } else { %>
+        <tr>
+          <td colspan="4">
+            <p>Nenhum cliente encontrado.</p>
+          </td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+
+  
+
+</div>
+
+<%- include("bottom.ejs") %>

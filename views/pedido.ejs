@@ -1,0 +1,87 @@
+<%- include ("top.ejs") %>
+
+
+
+ 
+    
+</div>
+<div class="row mb-3">
+    <div class="form-group">
+      
+      <form method="POST" action="/busca">
+        <div class="input-group">
+          <input type="text" name="query" placeholder="Digite um nome" class="form-control">
+          <button type="submit" class="btn btn-primary">Pesquisar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<table class="table table-bordered table-striped table-hover">
+    <thead class="table-dark">
+        <tr>
+            <th>ID</th>
+            <th>Nome</th>
+            <th>Status</th>
+            <th>Método de Envio</th>
+            <th>OS</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        <% os.forEach(item => { %>
+            <tr>
+                <td><a href="/os/edit/<%= item._id %>"><%= item._id %></a></td>
+                <td><%= item.name %></td>
+                <td style="<%= item.status === 'Aguardando Análise' ? 'background-color: yellow;' : (item.status === 'Enviado' ? 'background-color: green;' : '') %>"><%= item.status %></td>
+
+                
+                <td><%= item.metodo_envio %></td>
+                <td><%= item.fornecedor %></td>
+                <td>
+                    <center>
+                        <a href="/os/delete/<%= item._id %>" title="Excluir" class="btn btn-danger" onclick="return confirm('Tem certeza que deseja excluir esse cliente?')">
+                            <img src="/images/eraser.png" alt="Excluir" />
+                        </a>
+                    </center>
+                </td>
+            </tr>
+        <% }) %>
+    </tbody>
+</table>
+
+<nav aria-label="Page navigation example">
+    <ul class="pagination">
+        <li class="page-item">
+            <a class="page-link" href="/os/<%= page - 1 %>" aria-label="Previous">
+                <span aria-hidden="true">&laquo;</span>
+            </a>
+        </li>
+        <% for (let i = 1; i <= pagesQty; i++) { %>
+            <li class="page-item <%= page === i ? 'active' : '' %>">
+                <a class="page-link" href="/os/<%= i %>"><%= i %></a>
+            </li>
+        <% } %>
+        <li class="page-item">
+            <a class="page-link" href="/os/<%= page + 1 %>" aria-label="Next">
+                <span aria-hidden="true">&raquo;</span>
+            </a>
+        </li>
+    </ul>
+</nav>
+
+<div class="row">
+    <div class="col-md-2">
+        <a href="/os/new" class="btn btn-primary">Cadastrar Novo</a>
+    </div>
+    <div class="col-md-2">
+        <a href="/index" class="btn btn-primary">Index</a>
+    </div>
+    <div class="col-md-2">
+        <form action="/logout" method="POST">
+            <input type="submit" value="Logout" class="btn btn-primary"/>
+        </form>
+    </div>
+</div>
+
+<%- include("bottom.ejs") %>

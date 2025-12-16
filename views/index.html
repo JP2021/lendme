@@ -1,0 +1,448 @@
+<%- include ("top.ejs") %>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+        #fontSizeSelect {
+            height: 2rem; /* ajuste conforme necessário */
+        }
+    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.tiny.cloud/1/4r6qy08qpi5xciu8z4p052wetkikm1gw59x6i8zd7ajffk4z/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <nav class="col-md-2 d-none d-md-block bg-light sidebar">
+                <div class="sidebar-sticky">
+                    <ul class="nav flex-column"></ul>
+                    <div id="document-list">
+                        <h6>Documentos Cadastrados</h6>
+                        <ul class="list-group" id="documents-ul"></ul>
+                    </div>
+                </div>
+            </nav>
+
+            <main role="main" class="col-md-9 ml-sm-auto col-lg-10 px-4" id="main-content">
+                <!-- Página do Editor -->
+               
+                <div id="editor-page" class="page">
+                   
+                    <button id="start-record-btn" class="btn btn-danger mt-2">Iniciar Gravação</button>
+                    <button id="stop-record-btn" class="btn btn-primary mt-2">Parar Gravação</button>
+                    <button id="cadastro-link" class="btn btn-primary mt-2">Cadastrar Documento</button>
+                    
+                    <!-- Substitua o editor de texto pelo TinyMCE -->
+                    <textarea id="text-editor" class="form-control mt-3" style="height: 500px;"></textarea>
+                </div>
+
+                <!-- Página de Cadastro -->
+                <div id="cadastro-page" class="page" style="display: none;">
+                    <h2>Cadastro de Documentos</h2>
+                    <form id="cadastro-form">
+                        <div class="form-group">
+                            <label for="document-name">Nome do Documento</label>
+                            <input type="text" class="form-control" id="document-name" required>
+                        </div>
+                        <select id="fontSizeSelect2" class="form-select form-select-sm ms-2">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3" selected>3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                        </select>
+                        <div class="form-group">
+                            <label for="document-content">Conteúdo do Documento</label>
+                            <div class="toolbar btn-group mb-2">
+                                <button type="button" class="btn btn-light" data-command="bold"><b>B</b></button>
+                                <button type="button" class="btn btn-light" data-command="italic"><i>I</i></button>
+                                <button type="button" class="btn btn-light" data-command="underline"><u>U</u></button>
+                                <button type="button" class="btn btn-light" data-command="insertUnorderedList">&#8226; Lista</button>
+                                <button type="button" class="btn btn-light" data-command="insertOrderedList">1. Lista</button>
+                                <button type="button" class="btn btn-light" data-command="justifyLeft">&#9664;</button>
+                                <button type="button" class="btn btn-light" data-command="justifyCenter">&#9672;</button>
+                                <button type="button" class="btn btn-light" data-command="justifyRight">&#9654;</button>
+                                <button id="editor-link" class="btn btn-primary btn-sm mr-2 mt-2">Voltar para o Editor</button>
+                                <a href="/edit">
+                                    <button id="view-documents-btn" class="btn btn-primary btn-sm mt-2">Ver Documentos</button>
+                                </a>
+                            </div>
+                            <!-- Substitua o editor de texto pelo TinyMCE -->
+                            <textarea id="cadastro-text-editor" class="form-control" style="height: 500px;"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Cadastrar</button>
+                    </form>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal de Edição de Documento -->
+    <div class="modal fade" id="editDocumentModal" tabindex="-1" role="dialog" aria-labelledby="editDocumentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editDocumentModalLabel">Editar Documento</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="edit-document-form">
+                        <div class="form-group">
+                            <label for="edit-document-name">Nome do Documento</label>
+                            <input type="text" class="form-control" id="edit-document-name" required>
+                        </div>
+                        <select id="fontSizeSelect3" class="form-select form-select-sm ms-2">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3" selected>3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                        </select>
+                        <div class="form-group">
+                            <label for="edit-document-content">Conteúdo do Documento</label>
+                            <div class="toolbar btn-group mb-2">
+                                <button type="button" class="btn btn-light" data-command="bold"><b>B</b></button>
+                                <button type="button" class="btn btn-light" data-command="italic"><i>I</i></button>
+                                <button type="button" class="btn btn-light" data-command="underline"><u>U</u></button>
+                                <button type="button" class="btn btn-light" data-command="insertUnorderedList">&#8226; Lista</button>
+                                <button type="button" class="btn btn-light" data-command="insertOrderedList">1. Lista</button>
+                                <button type="button" class="btn btn-light" data-command="justifyLeft">&#9664;</button>
+                                <button type="button" class="btn btn-light" data-command="justifyCenter">&#9672;</button>
+                                <button type="button" class="btn btn-light" data-command="justifyRight">&#9654;</button>
+                            </div>
+                            <!-- Substitua o editor de texto pelo TinyMCE -->
+                            <textarea id="edit-text-editor" class="form-control" style="height: 500px;"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Salvar Edição</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Inicialização do TinyMCE
+        tinymce.init({
+            selector: '#text-editor, #cadastro-text-editor, #edit-text-editor',
+            height: 500,
+            language: 'pt_BR',
+            menubar: true,
+            plugins: 'autolink lists link image charmap print preview anchor searchreplace visualblocks code fullscreen insertdatetime media table paste code help wordcount',
+            toolbar: 'undo redo | formatselect | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help',
+            setup: function (editor) {
+                editor.on('change', function () {
+                    editor.save();
+                });
+            }
+        });
+    
+        // Função para formatar texto
+        function formatText(command, value = null) {
+            tinymce.activeEditor.execCommand(command, false, value);
+        }
+    
+        $(document).ready(function() {
+            // Alternância entre páginas
+            $('#editor-link').on('click', function() {
+                $('#editor-page').show();
+                $('#cadastro-page').hide();
+            });
+    
+            $('#cadastro-link').on('click', function() {
+                $('#editor-page').hide();
+                $('#cadastro-page').show();
+            });
+    
+            // Armazenamento e recuperação de documentos no localStorage
+            let documents = JSON.parse(localStorage.getItem('documents')) || {};
+    
+            // Atualiza a lista de documentos cadastrados na barra lateral
+            function updateDocumentList() {
+                const documentList = $('#documents-ul');
+                documentList.empty();
+                for (const docName in documents) {
+                    const listItem = $(`<li class="list-group-item">${docName}</li>`);
+    
+                    // Permite clicar para carregar o conteúdo no editor
+                    listItem.on('click', function() {
+                        $('#editor-page').show();
+                        $('#cadastro-page').hide();
+                        tinymce.get('text-editor').setContent(documents[docName]); // Carrega o conteúdo formatado
+                    });
+    
+                    documentList.append(listItem);
+                }
+            }
+    
+            // Cadastro de novos documentos
+            $('#cadastro-form').on('submit', function(event) {
+                event.preventDefault();
+                const name = normalizeText($('#document-name').val());
+                const content = tinymce.get('cadastro-text-editor').getContent(); // Pega o conteúdo formatado
+    
+                if (name && content) {
+                    documents[name] = content;
+                    localStorage.setItem('documents', JSON.stringify(documents));
+                    alert('Documento cadastrado com sucesso!');
+                    $('#cadastro-form')[0].reset();
+                    tinymce.get('cadastro-text-editor').setContent(''); // Limpa o editor
+                    updateDocumentList();
+                } else {
+                    alert('Preencha todos os campos.');
+                }
+            });
+            function normalizeText(text) {
+    console.log("Texto original:", text); // Log para depuração
+    
+    let normalizedText = text.trim();
+    
+    // Substituições ordenadas para evitar conflitos
+    normalizedText = normalizedText
+        .replace(/\bvírgula\b/gi, ',') // "vírgula" -> ","
+        .replace(/\bponto final\b/gi, '.') // "ponto final" -> "."
+      //  .replace(/\bponto\b/gi, '.') // "ponto" -> "."
+        .replace(/\s*([,.])\s*/g, '$1 ') // Remove espaços desnecessários antes e depois de "," e "."
+       // .replace(/\bponto parágrafo\b/gi, '<p></p>')
+        // Correções para evitar erros de pontuação
+        .replace(/,\s*,+/g, ',') // Remove múltiplas vírgulas
+        .replace(/\.\s*\.+/g, '.') // Remove múltiplos pontos seguidos
+        .replace(/,\s*\./g, '.') // Remove vírgula antes de ponto
+        .replace(/\s+/g, ' ') // Remove espaços extras
+        .replace(/\.$/, ''); // Remove ponto final se for o último caractere
+    
+    // Substituições específicas para termos médicos/números
+    normalizedText = normalizedText
+        .replace(/\bT. Um\b/gi, 'T1')
+        .replace(/\bTer Um\b/gi, 'T1')
+        .replace(/\bT. 2\b/gi, 'T2')
+        .replace(/\bT1 ET 2\b/gi, 'T1 e T2')
+        .replace(/\bTem um\b/gi, 'T1')
+        .replace(/\bTem dois\b/gi, 'T2')
+        .replace(/\bT1 IT 2\b/gi, 'T1 e T2')
+        .replace(/\bt 2\b/gi, 'T2');  
+    
+    console.log("Texto normalizado:", normalizedText); // Log para depuração
+    return normalizedText;
+    }
+    
+            // Funcionalidade de reconhecimento de voz
+            let recognition;
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                recognition.continuous = true;
+                recognition.interimResults = false;
+                recognition.lang = "pt-BR";
+                recognition.addEventListener("result", (event) => {
+                    let text = event.results[0][0].transcript;
+                    const autoTextMatch = text.match(/^Auto\s*texto\s*([\w\s]+)/);
+    
+                    if (!autoTextMatch) {
+                        text = capitalizeFirstLetter(text);
+                    }
+                    text = normalizeText(text);
+                    console.log("Texto final:", text);
+                });
+    
+                recognition.onstart = function() {
+                    console.log("Reconhecimento de voz iniciado.");
+                };
+    
+                recognition.onresult = function(event) {
+                    const transcript = normalizeText(event.results[event.resultIndex][0].transcript);
+                    console.log("Transcrição: " + transcript);
+    
+                    const editor = tinymce.get('text-editor');
+    
+                    if (editor && editor.hasFocus()) {
+                        if (transcript.includes("gravacao")) {
+                            if ($('#start-record-btn').hasClass('active')) {
+                                $('#stop-record-btn').click();
+                            } else {
+                                $('#start-record-btn').click();
+                            }
+                            return;
+                        }
+    
+                        if (transcript.includes("conclusao")) {
+                            const conclusionText = "Em conclusão, podemos afirmar que...";
+                            editor.insertContent(conclusionText);
+                            return;
+                        }
+    
+                        if (transcript.includes("Nova linha")) {
+                            editor.insertContent("<p></p>");
+                            return;
+                        }
+                        if (transcript.includes("Ponto parágrafo")) {
+                            editor.insertContent("<p></p>");
+                            return;
+                        }
+    
+                        const match = transcript.match(/^Auto\s*texto\s*([\w\s]+)/);
+                        if (match) {
+                            const docName = normalizeText(match[1]);
+                            console.log(`Procurando documento: "${docName}"`);
+    
+                            const documentListItems = $('#documents-ul li');
+                            let found = false;
+    
+                            documentListItems.each(function() {
+                                const listItemName = normalizeText($(this).text());
+                                console.log(`Comparando: "${listItemName}" com "${docName}"`);
+    
+                                if (listItemName === docName) {
+                                    $('#editor-page').show();
+                                    $('#cadastro-page').hide();
+                                    const content = documents[listItemName];
+                                    editor.setContent(content);
+                                    console.log(`Documento "${listItemName}" carregado com sucesso.`);
+                                    found = true;
+                                    return false;
+                                }
+                            });
+    
+                            if (!found) {
+                                console.log(`Documento "${docName}" não encontrado.`);
+                            }
+                        } else {
+                            editor.insertContent(transcript + ' ');
+                        }
+                    }
+                };
+    
+                recognition.onerror = function(event) {
+                    console.error("Erro no reconhecimento: ", event.error);
+                };
+    
+                recognition.onend = function() {
+                    console.log("Reconhecimento de voz finalizado.");
+                    if ($('#start-record-btn').hasClass('active')) {
+                        recognition.start();
+                    }
+                };
+    
+                $('#start-record-btn').on('click', function() {
+                    $(this).addClass('active');
+                    recognition.start();
+                });
+    
+                $('#stop-record-btn').on('click', function() {
+                    $('#start-record-btn').removeClass('active');
+                    recognition.stop();
+                });
+            } else {
+                alert('Reconhecimento de voz não suportado neste navegador.');
+            }
+    
+            // Carrega a lista de documentos ao iniciar a página
+            updateDocumentList();
+    
+            // Adiciona eventos de formatação aos botões
+            $('.toolbar button').on('click', function() {
+                const command = $(this).data('command');
+                formatText(command);
+            });
+        });
+    
+        // Event listeners para alterar o tamanho da fonte
+        document.getElementById('fontSizeSelect').addEventListener('change', function() {
+            const size = this.value;
+            tinymce.activeEditor.execCommand('fontSize', false, size);
+        });
+    
+        document.getElementById('fontSizeSelect2').addEventListener('change', function() {
+            const size = this.value;
+            tinymce.activeEditor.execCommand('fontSize', false, size);
+        });
+    
+        document.getElementById('fontSizeSelect3').addEventListener('change', function() {
+            const size = this.value;
+            tinymce.activeEditor.execCommand('fontSize', false, size);
+        });
+    
+        // Atalhos de teclado
+        document.addEventListener('keydown', function(event) {
+            // Verifica se o TinyMCE está em foco
+            const isTinyMCEFocused = tinymce.activeEditor && tinymce.activeEditor.hasFocus();
+    
+            // Atalho para iniciar gravação (Ctrl + E)
+            if (event.ctrlKey && event.key.toLowerCase() === 'e') {
+                event.preventDefault(); // Evita o comportamento padrão do navegador
+                if (!isTinyMCEFocused) { // Executa apenas se o TinyMCE não estiver em foco
+                    document.getElementById('start-record-btn').click();
+                }
+            }
+    
+            // Atalho para parar gravação (Ctrl + K)
+            if (event.ctrlKey && event.key.toLowerCase() === 'k') {
+                event.preventDefault(); // Evita o comportamento padrão do navegador
+                if (!isTinyMCEFocused) { // Executa apenas se o TinyMCE não estiver em foco
+                    document.getElementById('stop-record-btn').click();
+                }
+            }
+        });
+    
+        // Redirecionamento para a página de edição
+        document.getElementById('view-documents-btn').addEventListener('click', function() {
+            window.location.href = '/edit';
+        });
+          // Regex para identificar "auto texto" seguido do nome do documento
+          const match = transcript.match(/^auto\s*texto\s*([\w\s]+)/);
+
+if (match) {
+    const docName = normalizeText(match[1]);
+    console.log(`Procurando documento: "${docName}"`);
+
+    // Verificar se o nome corresponde a algum item da lista
+    const documentListItems = $('#documents-ul li');
+    let found = false;
+
+    documentListItems.each(function() {
+        const listItemName = normalizeText($(this).text());
+        console.log(`Comparando: "${listItemName}" com "${docName}"`);
+
+        if (listItemName === docName) {
+            $('#editor-page').show();
+            $('#cadastro-page').hide();
+            $('#text-editor').html(documents[listItemName]);
+            console.log(`Documento "${listItemName}" carregado com sucesso.`);
+            found = true;
+            return false; // Interrompe o loop
+        }
+    });
+
+    if (!found) {
+        console.log(`Documento "${docName}" não encontrado.`);
+    }
+} else {
+    // Caso contrário, adicionar a transcrição normal ao editor
+    $('#text-editor').html($('#text-editor').html() + transcript + '<br>');
+}
+
+
+recognition.onerror = function(event) {
+console.error("Erro no reconhecimento: ", event.error);
+};
+
+recognition.onend = function() {
+console.log("Reconhecimento de voz finalizado.");
+};
+    </script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+<%- include("bottom.ejs") %>

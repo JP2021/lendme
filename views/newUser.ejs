@@ -1,0 +1,59 @@
+<%- include("top.ejs") %>
+
+<p>Preencha os campos abaixo para cadastrar ou editar um usuário</p>
+<div class="col-6">
+  <form action="/users/new" method="POST" enctype="multipart/form-data">
+    <div class="row mb-3">
+      <div class="form-group">
+        <label for="name">Nome</label>
+        <input type="text" name="name" value="<%= user.name %>" class="form-control"/>
+      </div>
+    </div>
+    <div class="row mb-3">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" name="email" value="<%= user.email %>" class="form-control"/>
+      </div>
+    </div>
+    <div class="row mb-3">
+      <div class="form-group">
+        <label for="password">Senha</label>
+        <input type="password" name="password" value="" class="form-control"/>
+      </div>
+    </div>
+    <div class="row mb-3">
+      <div class="form-group">
+        <label for="profile">Perfil</label>
+        <select name="profile" class="form-control">
+          <option value="1" <%= user.profile === 1 ? 'selected' : '' %>>Usuário</option>
+          <option value="2" <%= user.profile === 2 ? 'selected' : '' %>>Administrador</option>
+        </select>
+      </div>
+    </div>
+    <div class="row mb-3">
+      <div class="form-group">
+        <label for="profilePic">Foto de Perfil</label>
+        <input type="file" name="profilePic" class="form-control"/>
+      </div>
+    </div>
+    <div class="row mb-3">
+      <div class="form-group">
+        <input type="hidden" name="id" value="<%= user._id %>" class="form-control"/>
+      </div>
+    </div>
+    <div class="row mb-3">
+      <div class="form-group">
+        <input type="submit" value="Salvar" class="btn btn-primary"/>
+        <a href="/users" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </div>
+  </form>
+</div>
+<script>
+  if (window.location.search) {
+    const error = window.location.search.split('=')[1];
+    alert(decodeURI(error));
+  }
+</script>
+
+<%- include("bottom.ejs") %>

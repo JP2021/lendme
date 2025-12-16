@@ -1,0 +1,211 @@
+<%- include ("top.ejs") %>
+<style>
+    body {
+        background-color: rgb(26, 26, 30);
+        color: white;
+    }
+
+    .form-control, .form-group label, .btn, .input-group select {
+        background-color: black;
+        color: rgb(160, 159, 159);
+        border: 1px solid rgb(29, 28, 28);
+    }
+
+    .btn-primary {
+        background-color: #8239E9;
+       
+    }
+
+    .btn-secondary {
+        background-color: #e62323;
+        
+    }
+
+    .btn {
+        color: white;
+
+        .btn-success{
+            background-color: #06580a;
+        
+    }
+
+    .btn {
+        color: white;
+
+        }   
+
+               
+
+       
+    }
+</style>
+
+
+<p>Preencha os campos abaixo para cadastrar ou editar um usuário</p>
+<div class="col-6">
+    <form action="/customers/new" method="POST">
+        <div class="row mb-3">
+            <div class="form-group">
+                <label for="name">Nome</label>
+                <input type="text" name="name" value="<%= customers.name %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="form-group">
+                <label for="cpf">CPF</label>
+                <input type="text" name="cpf" value="<%= customers.cpf %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="form-group">
+                <label for="cpf">E-mail</label>
+                <input type="email" name="email" value="<%= customers.email %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="form-group">
+                <label for="cpf">Telefone</label>
+                <input type="text" name="telefone" value="<%= customers.telefone %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="form-group">
+                <label for="cpf">Celular</label>
+                <input type="text" name="celular" value="<%= customers.celular %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="form-group">
+                <label for="cpf">Rua</label>
+                <input type="text" name="rua" value="<%= customers.rua %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="form-group">
+                <label for="cpf">CEP</label>
+                <input type="text" name="cep" value="<%= customers.cep %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="form-group">
+                <label for="cpf">Bairro</label>
+                <input type="text" name="bairro" value="<%= customers.bairro %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="form-group">
+                <br>Região:</br>
+                <div class="input-group">
+                    <select id="city" name="city" value="<%= customers.city %>" class="form-control">
+                        <option>Selecione uma opção:</option>
+                    </select>
+                    <select id="uf" name="uf" value="<%= customers.uf %>" onchange="municipios()" class="form-control">
+                        <option>Selecione uma opção:</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="form-group">
+                <input type="text" name="id" value="<%= customers._id %>" class="form-control"/>
+            </div>
+        </div>
+        <br>
+        <div class="row mb-3">
+            <div class="form-group">
+                <input type="submit" value="Salvar" class="btn btn-primary"/>
+                <a href="/customers" class="btn btn-secondary">Cancelar</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados")
+        .then(response => response.json())
+        .then(json => {
+            const ufsHtml = document.getElementById("uf");
+            const siglas = json.map(item => item.sigla).sort();
+            siglas.forEach(item => {
+                const opt = document.createElement("option");
+                opt.innerText = item;
+                ufsHtml.add(opt);
+            });
+
+            <% if(customers.uf) { %>
+                ufsHtml.value = "<%= customers.uf %>";
+                var estado = "<%= customers.uf %>";
+            <% } %>
+        })
+        .catch(error => alert(error));
+
+    if (window.location.search) {
+        const error = window.location.search.split('=')[1];
+        alert(decodeURI(error));
+    }
+</script>
+
+<script>
+    const ufsHtml = document.getElementById("uf");
+    
+    <% if(customers.uf) { %>
+        ufsHtml.value = "<%= customers.uf %>";
+        var estado = "<%= customers.uf %>";
+    <% } %>
+
+    fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados/" + estado + "/municipios")
+        .then(response => response.json())
+        .then(json => {
+            const ufsHtml2 = document.getElementById("city");
+
+            <% if(customers.city) { %>
+                ufsHtml2.value = "<%= customers.city %>";
+            <% } %>
+
+            const nomes = json.map(item => item.nome).sort();
+            nomes.forEach(item => {
+                const opt = document.createElement("option");
+                opt.innerText = item;
+                ufsHtml2.add(opt);
+            });
+
+            <% if(customers.city) { %>
+                ufsHtml2.value = "<%= customers.city %>";
+            <% } %>
+        })
+        .catch(error => alert(error));
+
+    if (window.location.search) {
+        const error = window.location.search.split('=')[1];
+        alert(decodeURI(error));
+    }
+</script>
+
+<script>
+    function municipios() {
+        estado = ufsHtml.value;
+        const ufsHtml2 = document.getElementById('city');
+        while (ufsHtml2.length > 0) {
+            ufsHtml2.remove(0);
+        }
+
+        fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados/" + estado + "/municipios")
+            .then(response => response.json())
+            .then(json => {
+                const nomes = json.map(item => item.nome).sort();
+                nomes.forEach(item => {
+                    const opt2 = document.createElement('option');
+                    opt2.innerText = item;
+                    ufsHtml2.add(opt2);
+                });
+            })
+            .catch(error => alert(error));
+
+        if (window.location.search) {
+            const error = window.location.search.split('=')[1];
+            alert(decodeURI(error));
+        }
+    }
+</script>
+
+<%- include("bottom.ejs") %>

@@ -1,0 +1,421 @@
+
+
+<%- include ("top.ejs") %>
+<style>
+    body {
+        background-color: rgb(26, 26, 30);
+        color: white;
+    }
+
+    .form-control, .form-group label, .btn, .input-group select {
+        background-color: black;
+        color: rgb(160, 159, 159);
+        border: 1px solid rgb(29, 28, 28);
+    }
+
+    .btn-primary {
+        background-color: #8239E9;
+       
+    }
+
+    .btn-secondary {
+        background-color: #e62323;
+        
+    }
+
+    .btn {
+        color: white;
+
+        .btn-success{
+            background-color: #06580a;
+        
+    }
+
+    .btn {
+        color: white;
+
+        }
+
+        
+
+        
+        
+
+       
+    }
+</style>
+
+<div style="background-color: #8239E9">
+    <h2 style="color: #8239E9"> Teste</h2>
+</div>
+
+<p>Preencha os campos abaixo para cadastrar ou editar uma OS</p>
+<form action="/os/new" method="POST">
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="fornecedor">OS</label>
+                <input type="text" id="fornecedor" name="fornecedor" value="<%= os.fornecedor %>" class="form-control md-3">
+                    
+            </input>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="pedido">ID</label>
+                <input type="text" id="pedido" name="pedido" value="<%= os._id %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="data">Data</label>
+                <input type="text" id="data" name="data" value="<%= os.data %>" class="form-control"/>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-12">
+            <h5>Contato</h5>
+        </div>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="name">Nome</label>
+                <input type="text" id="name" name="name" value="<%= os.name %>" required="true" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="email">E-mail</label>
+                <input type="text" id="email" name="email" value="<%= os.email %>" required="true" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="celular">Celular</label>
+                <input type="text" id="celular" name="celular" value="<%= os.celular %>" class="form-control"/>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="cpf">CNPJ / CPF</label>
+                <input type="text" id="cpf" name="cpf" value="<%= os.cpf %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="insc_estadual">Inscrição Estadual</label>
+                <input type="text" id="insc_estadual" name="insc_estadual" value="<%= os.insc_estadual %>" class="form-control"/>
+            </div>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="rua">Rua</label>
+                <input type="text" id="rua" name="rua" value="<%= os.rua %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="bairro">Bairro</label>
+                <input type="text" id="bairro" name="bairro" value="<%= os.bairro %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="cep">Cep (Somente Números)</label>
+                <input type="text" id="cep" name="cep" value="<%= os.cep %>" class="form-control"/>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="uf">Estado</label>
+                <input type="text" id="uf" name="uf" value="<%= os.uf %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="city">Cidade</label>
+                <input type="text" id="city" name="city" value="<%= os.city%>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="numero">Número</label>
+                <input type="text" id="numero" name="numero" value="<%= os.city%>" class="form-control"/>
+            </div>
+        </div>
+    </div>
+
+   
+
+    <div class="col-12">
+        <h5>Produto</h5>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="produto">Produto</label>
+                <input type="text" name="produto" value="<%= os.produto %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="numero_serie">Número de Série</label>
+                <input type="text" id="numero_serie" name="numero_serie" value="<%= os.numero_serie %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="valor">Valor</label>
+                <input type="text" id="valor" name="valor" value="<%= os.valor %>" class="form-control" oninput="calcularTotal()"/>
+            </div>
+        </div>
+        <div class="col-md-1">
+            <div class="form-group">
+                <label for="qtd">Quantidade</label>
+                <input type="text" id="qtd" name="qtd" value="<%= os.qtd %>" class="form-control" oninput="calcularTotal()"/>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="produto2">Produto</label>
+                <input type="text" name="produto2" value="<%= os.produto2 %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="numero_serie2">Número de Série</label>
+                <input type="text" id="numero_serie2" name="numero_serie2" value="<%= os.numero_serie2 %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="valor2">Valor</label>
+                <input type="text" id="valor2" name="valor2" value="<%= os.valor2 %>" class="form-control" oninput="calcularTotal()"/>
+            </div>
+        </div>
+        <div class="col-md-1">
+            <div class="form-group">
+                <label for="qtd2">Quantidade</label>
+                <input type="text" id="qtd2" name="qtd2" value="<%= os.qtd2 %>" class="form-control" oninput="calcularTotal()"/>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="produto3">Produto</label>
+                <input type="text" name="produto3" value="<%= os.produto3 %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="numero_serie3">Número de Série</label>
+                <input type="text" id="numero_serie3" name="numero_serie3" value="<%= os.numero_serie3 %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="valor3">Valor</label>
+                <input type="text" id="valor3" name="valor3" value="<%= os.valor3 %>" class="form-control" oninput="calcularTotal()"/>
+            </div>
+        </div>
+        <div class="col-md-1">
+            <div class="form-group">
+                <label for="qtd3">Quantidade</label>
+                <input type="text" id="qtd3" name="qtd3" value="<%= os.qtd3 %>" class="form-control" oninput="calcularTotal()"/>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="produto4">Produto</label>
+                <input type="text" name="produto4" value="<%= os.produto4 %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="numero_serie4">Número de Série</label>
+                <input type="text" id="numero_serie4" name="numero_serie4" value="<%= os.numero_serie4 %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="valor4">Valor</label>
+                <input type="text" id="valor4" name="valor4" value="<%= os.valor4 %>" class="form-control" oninput="calcularTotal()"/>
+            </div>
+        </div>
+        <div class="col-md-1">
+            <div class="form-group">
+                <label for="qtd4">Quantidade</label>
+                <input type="text" id="qtd4" name="qtd4" value="<%= os.qtd4 %>" class="form-control" oninput="calcularTotal()"/>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="produto5">Produto</label>
+                <input type="text" name="produto5" value="<%= os.produto5 %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="numero_serie5">Número de Série</label>
+                <input type="text" id="numero_serie5" name="numero_serie5" value="<%= os.numero_serie5 %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="valor5">Valor</label>
+                <input type="text" id="valor5" name="valor5" value="<%= os.valor5 %>" class="form-control" oninput="calcularTotal()"/>
+            </div>
+        </div>
+        <div class="col-md-1">
+            <div class="form-group">
+                <label for="qtd5">Quantidade</label>
+                <input type="text" id="qtd5" name="qtd5" value="<%= os.qtd5 %>" class="form-control" oninput="calcularTotal()"/>
+            </div>
+        </div>
+    </div>
+    <div class="row mb-3 mt-3">
+        <div class="col-12">
+            <h5>Procedimento</h5>
+        </div>
+    </div>
+    
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="serasa">Serviço</label>
+                <input type="text" id="serasa" name="serasa" value="<%= os.serasa %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="receita">Material Utilizado</label>
+                <input type="text" id="receita" name="receita" value="<%= os.receita %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="sintegra">Observações</label>
+                <input type="text" id="sintegra" name="sintegra" value="<%= os.sintegra %>" class="form-control"/>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-3">
+            <div class="form-group mb-3">
+                <label for="rastreio">Número de Rastreio</label>
+                <input type="text" id="rastreio" name="rastreio" value="<%= os.rastreio %>" class="form-control"/>
+            </div>
+        </div>
+
+        <div class="col-3">
+            <div class="form-group mb-3">
+                <label for="status">Status</label>
+                <select id="status" name="status" class="form-control md-3">
+                    <option value="Aguardando Análise" <%= os.status === 'Aguardando Análise' ? 'selected' : '' %>>Aguardando Análise</option>
+                    <option value="Em Análise" <%= os.status === 'Em Análise' ? 'selected' : '' %>>Em Análise</option>
+                    <option value="Enviar Orçamento" <%= os.status === 'Enviar Orçamento' ? 'selected' : '' %>>Enviar Orçamento</option>
+                    <option value="Reprovado" <%= os.status === 'Reprovado' ? 'selected' : '' %>>Reprovado</option>
+                    <option value="Aprovado" <%= os.status === 'Aprovado' ? 'selected' : '' %>>Aprovado</option>
+                    <option value="Enviado" <%= os.status === 'Enviado' ? 'selected' : '' %>>Enviado</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="col-3">
+            <form action="/os/rastreio" method="POST">
+                <div class="form-group mb-3">
+                    <input type="submit" value="Enviar E-mail" class="btn btn-primary mt-3" onclick="return confirm('Tem certeza que deseja enviar e-mail para o cliente?')" /> 
+                </div>
+          
+        </div>
+
+        <div class="col-3">
+            <div class="form-group mb-3">
+                <label for="metodo_envio">Método de Envio</label>
+                <select id="metodo_envio" name="metodo_envio" class="form-control md-3">
+                    <option value="Mercado Livre" <%= os.metodo_envio === 'Mercado Livre' ? 'selected' : '' %>>Mercado Livre</option>
+                    <option value="Amazon" <%= os.metodo_envio === 'Amazon' ? 'selected' : '' %>>Amazon</option>
+                    <option value="Transportadora" <%= os.metodo_envio === 'Transportadora' ? 'selected' : '' %>>Transportadora</option>
+                    <option value="Pac" <%= os.metodo_envio === 'Pac' ? 'selected' : '' %>>Pac</option>
+                    <option value="Sedex" <%= os.metodo_envio === 'Sedex' ? 'selected' : '' %>>Sedex</option>
+                    <option value="Retira" <%= os.metodo_envio === 'Retira' ? 'selected' : '' %>>Retira</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="total_sem_frete">Total Sem Frete</label>
+                <input type="text" id="total_sem_frete" name="total_sem_frete" value="<%= os.total_sem_frete %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="frete">Valor do Frete</label>
+                <input type="text" id="frete" name="frete" value="<%= os.frete %>" class="form-control" oninput="calcularValorTotal()"/>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="valor_total">Valor Total</label>
+                <input type="text" id="valor_total" name="valor_total" value="<%= os.valor_total %>" class="form-control"/>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="forma_pgto">Forma de Pagamento</label>
+                <input type="text" id="forma_pgto" name="forma_pgto" value="<%= os.forma_pgto %>" class="form-control"/>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="form-group col-12">
+            <input type="text" name="id" value="<%= os._id %>" class="form-control" hidden />
+        </div>
+    </div>
+
+    <div class="row mb-3">
+       
+        
+        <div class="form-group col-12">
+            <input type="submit" value="Salvar" class="btn btn-primary" />
+            <a href="/os" class="btn btn-secondary">Cancelar</a>
+            <button type="button" onclick="imprimirCampos()" class="btn btn-primary">Imprimir</button>
+        </div>
+    </div>
+</form>
+
+
+
+<%- include("bottom.ejs") %>
+
+

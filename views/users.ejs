@@ -1,0 +1,79 @@
+<%- include("top.ejs") %>
+<div class="alert alert-info">
+  <%= qty %> Usuários Cadastrados
+</div>
+<table>
+  <p>
+    <table class="table table-bordered table-striped table-hover">
+      <thead class="thead-dark">
+        <tr>
+          <td>Nome</td>
+          <td>Perfil</td>
+          <td>Email</td>
+          <td>Foto do Perfil</td>
+          <td>Ações</td>
+        </tr>
+      </thead>
+      <tbody>
+        <% users.forEach(item => { %>
+        <tr>
+          <td><a href="/users/edit/<%= item._id %>"><%= item.name %></a></td>
+          <td><%= parseInt(item.profile) === 1 ? "User" : "ADMIN" %></td>
+          <td><%= item.email %></td>
+          <td>
+            <% if (item.profilePic) { %>
+           <center>
+              <img src="/<%= item.profilePic %>" alt="Foto do Perfil" style="width: 40px; height: 40x; object-fit: cover;"/>
+            <% } else { %>
+            <img src="/images/default-profile.png" alt="" style="width: 40px; height: 40px; object-fit: cover;"/>
+            <% } %>
+          </center>
+          </td>
+          <td>
+            <center>
+              <a href="/users/delete/<%= item._id %>" title="Excluir" class="btn btn-danger"
+                onclick="return confirm('Tem certeza que deseja excluir esse usuário?')">
+                <img src="/images/eraser.png" />
+              </a>
+            </center>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <nav aria-label="Page navigation example">
+      <ul class="pagination">
+        <li class="page-item">
+          <a class="page-link" href="/users/<%= page - 1 %>" aria-label="Previous">
+            <span aria-hidden="true">&laquo;</span>
+          </a>
+        </li>
+        <% for (let i = 1; i <= pagesQty; i++) { %>
+        <li class="page-item <%= page === i ? 'active' : '' %>">
+          <a class="page-link" href="/users/<%= i %>"><%= i %></a>
+        </li>
+        <% } %>
+        <li class="page-item">
+          <a class="page-link" href="/users/<%= page + 1 %>" aria-label="Next">
+            <span aria-hidden="true">&raquo;</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </p>
+  <br>
+  <div class="row">
+    <div class="col-2">
+      <a href="/users/new" class="btn btn-primary">Cadastrar Novo</a>
+    </div>
+    <div class="col-2">
+      <a href="/" class="btn btn-primary">Index</a>
+    </div>
+    <div class="col-2">
+      <form action="/logout" method="POST">
+        <input type="submit" value="Logout" class="btn btn-primary"/>
+      </form>
+    </div>
+  </div>
+</table>
+<%- include("bottom.ejs") %>

@@ -1,0 +1,38 @@
+<%- include("top.ejs") %>
+
+<style>
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 600px;
+  }
+
+  .btn-group {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+</style>
+
+<div class="container">
+  <div class="btn-group">
+    <a href="/customers" class="btn btn-primary">Gestão de Clientes</a>
+    <a href="/os" class="btn btn-primary">OS</a>
+    <% if(userProfile === 2) { %>
+      <a href="/users" class="btn btn-primary">Usuários</a>
+    <% } %>
+    <form action="/logout" method="POST" style="margin: 0;">
+      <input type="submit" value="Logout" class="btn btn-secondary" />
+    </form>
+  </div>
+</div>
+
+<%- include("bottom.ejs") %>

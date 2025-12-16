@@ -1,0 +1,461 @@
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<script src="/js/theme-toggle.js"></script>
+
+<script>
+    function imprimirCampos() {
+        // Coletando os valores dos campos do formulário
+        const campos = {
+            fornecedor: document.getElementById('fornecedor').value,
+            pedido: document.getElementById('pedido').value,
+            data: document.getElementById('data').value,
+            name: document.getElementById('name').value,
+            email: document.getElementById('email').value,
+            celular: document.getElementById('celular').value,
+            cpf: document.getElementById('cpf').value,
+            insc_estadual: document.getElementById('insc_estadual').value,
+            rua: document.getElementById('rua').value,
+            bairro: document.getElementById('bairro').value,
+            cep: document.getElementById('cep').value,
+            uf: document.getElementById('uf').value,
+            city: document.getElementById('city').value,
+            rastreio: document.getElementById('rastreio').value,
+            status: document.getElementById('status').value,
+            metodo_envio: document.getElementById('metodo_envio').value,
+            total_sem_frete: document.getElementById('total_sem_frete').value,
+            valor_total: document.getElementById('valor_total').value,
+            forma_pgto: document.getElementById('forma_pgto').value,
+            frete: document.getElementById('frete').value
+        };
+
+        const produtos = [
+            {
+                nome: document.getElementsByName('produto')[0].value,
+                numero_serie: document.getElementById('numero_serie').value,
+                valor: document.getElementById('valor').value,
+                qtd: document.getElementById('qtd').value
+            },
+            {
+                nome: document.getElementsByName('produto2')[0].value,
+                numero_serie: document.getElementById('numero_serie2').value,
+                valor: document.getElementById('valor2').value,
+                qtd: document.getElementById('qtd2').value
+            },
+            {
+                nome: document.getElementsByName('produto3')[0].value,
+                numero_serie: document.getElementById('numero_serie3').value,
+                valor: document.getElementById('valor3').value,
+                qtd: document.getElementById('qtd3').value
+            },
+            {
+                nome: document.getElementsByName('produto4')[0].value,
+                numero_serie: document.getElementById('numero_serie4').value,
+                valor: document.getElementById('valor4').value,
+                qtd: document.getElementById('qtd4').value
+            },
+            {
+                nome: document.getElementsByName('produto5')[0].value,
+                numero_serie: document.getElementById('numero_serie5').value,
+                valor: document.getElementById('valor5').value,
+                qtd: document.getElementById('qtd5').value
+            }
+        ];
+
+        // Função para criar uma seção HTML
+        function criarSecao(titulo, campos) {
+            let conteudo = `<div class="section"><h2>${titulo}</h2>`;
+            for (let campo in campos) {
+                if (campos[campo]) {
+                    conteudo += `<p><strong>${campo}:</strong> ${campos[campo]}</p>`;
+                }
+            }
+            conteudo += `</div>`;
+            return conteudo;
+        }
+
+        // Criando o conteúdo HTML para impressão
+        let conteudoParaImpressao = `
+            <div class="container">
+                ${criarSecao('Cliente', {
+                    'Nome': campos.name,
+                    'E-mail': campos.email,
+                    'Celular': campos.celular,
+                    'CNPJ / CPF': campos.cpf,
+                    'Inscrição Estadual': campos.insc_estadual,
+                    'Rua': campos.rua,
+                    'Bairro': campos.bairro,
+                    'Cep': campos.cep,
+                    'Estado': campos.uf,
+                    'Cidade': campos.city
+                })}
+                ${criarSecao('Pedido', {
+                    'Fornecedor': campos.fornecedor,
+                    'Número do Pedido': campos.pedido,
+                    'Data': campos.data,
+                    'Número de Rastreio': campos.rastreio,
+                    'Status': campos.status,
+                    'Método de Envio': campos.metodo_envio,
+                    'Total Sem Frete': campos.total_sem_frete,
+                    'Valor do Frete': campos.frete,
+                    'Valor Total': campos.valor_total,
+                    'Forma de Pagamento': campos.forma_pgto
+                })}
+            </div>
+            <div class="container">
+                <div class="section">
+                    <h2>Produtos</h2>
+                    ${produtos.map(produto => {
+                        if (produto.nome || produto.numero_serie || produto.valor || produto.qtd) {
+                            return `
+                                <p><strong>Produto:</strong> ${produto.nome}</p>
+                                <p><strong>Número de Série:</strong> ${produto.numero_serie}</p>
+                                <p><strong>Valor:</strong> ${produto.valor}</p>
+                                <p><strong>Quantidade:</strong> ${produto.qtd}</p>
+                            `;
+                        }
+                        return '';
+                    }).join('<br>')}
+                </div>
+            </div>
+        `;
+
+        // Abrindo uma nova janela para impressão
+        const janelaDeImpressao = window.open('', '', 'width=800,height=600');
+        janelaDeImpressao.document.write(`
+            <html>
+            <head>
+                <title>Impressão de Pedido</title>
+                <style>
+                    @media print {
+                        body {
+                            font-family: Arial, sans-serif;
+                        }
+                        .container {
+                            display: flex;
+                            flex-wrap: wrap;
+                            justify-content: space-between;
+                        }
+                        .section {
+                            width: 48%;
+                            margin: 1%;
+                            padding: 10px;
+                            border: 1px solid #000;
+                        }
+                        .section h2 {
+                            font-size: 18px;
+                            margin-bottom: 10px;
+                        }
+                        .section p {
+                            margin: 5px 0;
+                        }
+                    }
+                </style>
+            </head>
+            <body>${conteudoParaImpressao}</body>
+            </html>
+        `);
+        janelaDeImpressao.document.close();
+        janelaDeImpressao.print();
+    }
+</script>
+<script>
+    function calcularTotal() {
+        var totalSemFrete = 0;
+
+        // Calcular para cada produto
+       
+            var valor = parseFloat(document.getElementById('valor').value) || 0;
+            var qtd = parseInt(document.getElementById('qtd').value) || 1;
+            var subtotal = valor ;
+
+            var valor2 = parseFloat(document.getElementById('valor2').value) || 0;
+            var qtd2 = parseInt(document.getElementById('qtd2').value) || 1;
+            var subtotal2 = valor2;
+
+            var valor3 = parseFloat(document.getElementById('valor3').value) || 0;
+            var qtd3 = parseInt(document.getElementById('qtd3').value) || 1;
+            var subtotal3 = valor3;
+
+            var valor4 = parseFloat(document.getElementById('valor4').value) || 0;
+            var qtd4 = parseInt(document.getElementById('qtd4').value) || 1;
+            var subtotal4 = valor4 ;
+
+            
+            var valor5 = parseFloat(document.getElementById('valor5').value) || 0;
+            var qtd5 = parseInt(document.getElementById('qtd5').value) || 1;
+            var subtotal5 = valor5;
+
+                        
+
+            
+
+             totalSemFrete += subtotal + subtotal2 + subtotal3 + subtotal4 + subtotal5;
+        
+
+        // Atualizar o campo no formulário
+        document.getElementById('total_sem_frete').value = totalSemFrete.toFixed(2);
+
+        // Chamar a função para calcular o valor total considerando o frete
+        calcularValorTotal();
+    }
+
+    function calcularValorTotal() {
+        var totalSemFrete = parseFloat(document.getElementById('total_sem_frete').value) || 0;
+        var frete = parseFloat(document.getElementById('frete').value) || 0;
+
+        var valorTotal = totalSemFrete + frete;
+
+        // Atualizar o campo no formulário
+        document.getElementById('valor_total').value = valorTotal.toFixed(2);
+    }
+
+    // Adicionar event listeners para chamar as funções ao alterar os campos de valor e quantidade
+    document.addEventListener("DOMContentLoaded", function() {
+        for (var i = 1; i <= 5; i++) {
+            document.getElementById('valor' + i).addEventListener('input', function() {
+                calcularTotal();
+            });
+            document.getElementById('qtd' + i).addEventListener('input', function() {
+                calcularTotal();
+            });
+        }
+
+        document.getElementById('frete').addEventListener('input', function() {
+            calcularValorTotal();
+        });
+    });
+</script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+document.getElementById('cep').addEventListener('blur', function() {
+    var cep = this.value.replace(/\D/g, '');
+
+    if (cep.length === 8) {
+        axios.get(`https://viacep.com.br/ws/${cep}/json/`)
+            .then(function(response) {
+                if (!response.data.erro) {
+                    document.getElementById('rua').value = response.data.logradouro;
+                    document.getElementById('bairro').value = response.data.bairro;
+                    document.getElementById('city').value = response.data.localidade;
+                    document.getElementById('uf').value = response.data.uf;
+                } else {
+                    alert('CEP não encontrado.');
+                }
+            })
+            .catch(function(error) {
+                console.error('Erro ao buscar endereço:', error);
+                alert('Erro ao buscar endereço. Tente novamente.');
+            });
+    } else {
+        alert('CEP inválido.');
+    }
+});
+</script>
+
+<script>
+    function formatText(command, value = null) {
+        document.execCommand(command, false, value);
+    }
+
+    $(document).ready(function() {
+        // Alternância entre páginas
+        $('#editor-link').on('click', function() {
+            $('#editor-page').show();
+            $('#cadastro-page').hide();
+        });
+
+        $('#cadastro-link').on('click', function() {
+            $('#editor-page').hide();
+            $('#cadastro-page').show();
+        });
+
+        // Armazenamento e recuperação de documentos no localStorage
+        let documents = JSON.parse(localStorage.getItem('documents')) || {};
+
+        // Atualiza a lista de documentos cadastrados na barra lateral
+        function updateDocumentList() {
+            const documentList = $('#documents-ul');
+            documentList.empty();
+            for (const docName in documents) {
+                const listItem = $(`<li class="list-group-item">${docName}</li>`);
+                listItem.on('click', function() {
+                    $('#editor-page').show();
+                    $('#cadastro-page').hide();
+                    $('#text-editor').html(documents[docName]);
+                });
+                documentList.append(listItem);
+            }
+        }
+
+        // Atualiza a lista de documentos cadastrados na modal
+        function updateDocumentListModal() {
+            const documentList = $('#documents-list');
+            documentList.empty();
+            for (const docName in documents) {
+                const listItem = $(`
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>${docName}</span>
+                        <div>
+                            <button class="btn btn-warning btn-sm edit-btn" data-name="${docName}">Editar</button>
+                            <button class="btn btn-danger btn-sm delete-btn" data-name="${docName}">Excluir</button>
+                        </div>
+                    </li>`);
+
+                // Editar Documento
+                listItem.find('.edit-btn').on('click', function() {
+                    const docName = $(this).data('name');
+                    $('#edit-document-name').val(docName);
+                    $('#edit-text-editor').html(documents[docName]);
+                    $('#editDocumentModal').modal('show');
+                });
+
+                // Excluir Documento
+                listItem.find('.delete-btn').on('click', function() {
+                    const docName = $(this).data('name');
+                    delete documents[docName];
+                    localStorage.setItem('documents', JSON.stringify(documents));
+                    updateDocumentList();
+                    updateDocumentListModal();
+                });
+
+                documentList.append(listItem);
+            }
+        }
+
+        // Exibir modal de documentos
+        $('#view-documents-btn').on('click', function() {
+            updateDocumentListModal();
+            $('#documentsModal').modal('show');
+        });
+
+        // Cadastro de novos documentos
+        $('#cadastro-form').on('submit', function(event) {
+            event.preventDefault();
+            const name = $('#document-name').val().trim();
+            const content = $('#cadastro-text-editor').html();
+            if (name && content) {
+                documents[name] = content;
+                localStorage.setItem('documents', JSON.stringify(documents));
+                alert('Documento cadastrado com sucesso!');
+                $('#cadastro-form')[0].reset();
+                $('#cadastro-text-editor').html('');
+                updateDocumentList();
+            } else {
+                alert('Preencha todos os campos.');
+            }
+        });
+
+        // Salvar edição do documento
+        $('#edit-document-form').on('submit', function(event) {
+            event.preventDefault();
+            const name = $('#edit-document-name').val();
+            const content = $('#edit-text-editor').html();
+            if (name && content) {
+                documents[name] = content;
+                localStorage.setItem('documents', JSON.stringify(documents));
+                alert('Documento atualizado com sucesso!');
+                updateDocumentList();
+                updateDocumentListModal();
+                $('#editDocumentModal').modal('hide');
+            } else {
+                alert('Preencha todos os campos.');
+            }
+        });
+    function normalizeText(text) {
+            return text
+                .toLowerCase() // Converte para minúsculas
+                .trim() // Remove espaços extras no início e no final
+                .normalize('NFD') // Remove acentos
+                .replace(/[\u0300-\u036f]/g, '') // Remove caracteres diacríticos
+                .replace(/[.,]/g, ''); // Remove pontos e vírgulas
+        }
+
+        // Funcionalidade de conversão de voz para texto
+        let recognition;
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = "pt-BR";
+
+            recognition.onstart = function() {
+                console.log("Reconhecimento de voz iniciado.");
+            };
+
+            recognition.onresult = function(event) {
+                const transcript = normalizeText(event.results[event.resultIndex][0].transcript);
+                console.log("Transcrição: " + transcript);
+
+                // Comando "ponto parágrafo"
+                if (transcript.includes("ponto paragrafo")) {
+                    const editor = $('#text-editor');
+                    const currentText = editor.html();
+                    editor.html(currentText + ".<br>"); // Adiciona ponto final e pula duas linhas
+                    console.log("Comando 'ponto parágrafo' executado.");
+                    return; // Interrompe a execução para evitar conflitos
+                }
+
+                // Regex para identificar "auto texto" seguido do nome do documento
+                const match = transcript.match(/^auto\s*texto\s*([\w\s]+)/);
+
+                if (match) {
+                    const docName = normalizeText(match[1]);
+                    console.log(`Procurando documento: "${docName}"`);
+
+                    // Verificar se o nome corresponde a algum item da lista
+                    const documentListItems = $('#documents-ul li');
+                    let found = false;
+
+                    documentListItems.each(function() {
+                        const listItemName = normalizeText($(this).text());
+                        console.log(`Comparando: "${listItemName}" com "${docName}"`);
+
+                        if (listItemName === docName) {
+                            $('#editor-page').show();
+                            $('#cadastro-page').hide();
+                            $('#text-editor').html($('#text-editor').html() + documents[listItemName]);
+                            console.log(`Documento "${listItemName}" carregado com sucesso.`);
+                            found = true;
+                            return false; // Interrompe o loop
+                        }
+                    });
+
+                    if (!found) {
+                        console.log(`Documento "${docName}" não encontrado.`);
+                    }
+                } else {
+                    // Caso contrário, adicionar a transcrição normal ao editor
+                    $('#text-editor').html($('#text-editor').html() + transcript + ' ');
+                }
+            };
+
+            recognition.onerror = function(event) {
+                console.error("Erro no reconhecimento: ", event.error);
+            };
+
+            recognition.onend = function() {
+                console.log("Reconhecimento de voz finalizado.");
+            };
+
+            $('#start-record-btn').on('click', function() {
+                recognition.start();
+            });
+
+            $('#stop-record-btn').on('click', function() {
+                recognition.stop();
+            });
+        } else {
+            alert('Reconhecimento de voz não suportado neste navegador.');
+        }
+        
+        // Carrega a lista de documentos ao iniciar a página
+        updateDocumentList();
+    });
+</script>
+
+
+</body>
+</html>

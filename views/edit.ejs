@@ -1,0 +1,140 @@
+<%- include ("top.ejs") %>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Documentos</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <!-- Seção de Listagem de Documentos -->
+        <div id="document-list-section">
+            <h2>Documentos Cadastrados</h2>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Nome do Documento</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="documentos-table">
+                    <!-- Os documentos serão inseridos aqui via JavaScript -->
+                </tbody>
+            </table>
+            <a href="/speechEditor" class="btn btn-primary">Voltar para o Editor</a>
+        </div>
+
+        <!-- Seção de Edição de Documento (inicialmente oculta) -->
+        <div id="edit-document-section" style="display: none;">
+            <h2>Editar Documento</h2>
+            <form id="edit-document-form">
+                <div class="form-group">
+                    <label for="edit-document-name">Nome do Documento</label>
+                    <input type="text" class="form-control" id="edit-document-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-document-content">Conteúdo do Documento</label>
+                    <div class="toolbar btn-group mb-2">
+                        <button type="button" class="btn btn-light" data-command="bold"><b>B</b></button>
+                        <button type="button" class="btn btn-light" data-command="italic"><i>I</i></button>
+                        <button type="button" class="btn btn-light" data-command="underline"><u>U</u></button>
+                        <button type="button" class="btn btn-light" data-command="insertUnorderedList">&#8226; Lista</button>
+                        <button type="button" class="btn btn-light" data-command="insertOrderedList">1. Lista</button>
+                        <button type="button" class="btn btn-light" data-command="justifyLeft">&#9664;</button>
+                        <button type="button" class="btn btn-light" data-command="justifyCenter">&#9672;</button>
+                        <button type="button" class="btn btn-light" data-command="justifyRight">&#9654;</button>
+                    </div>
+                    <div id="edit-text-editor" class="form-control" contenteditable="true" style="height: 500px; overflow-y: auto;"></div>
+                </div>
+                <button type="submit" class="btn btn-primary">Salvar Edição</button>
+                <button type="button" id="cancel-edit-btn" class="btn btn-secondary">Cancelar</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Recupera os documentos do localStorage
+            let documents = JSON.parse(localStorage.getItem('documents')) || {};
+
+            // Função para atualizar a tabela de documentos
+            function updateDocumentTable() {
+                const tableBody = $('#documentos-table');
+                tableBody.empty();
+                for (const docName in documents) {
+                    const row = $(`
+                        <tr>
+                            <td>${docName}</td>
+                            <td>
+                                <button class="btn btn-warning btn-sm edit-btn" data-name="${docName}">Editar</button>
+                                <button class="btn btn-danger btn-sm delete-btn" data-name="${docName}">Excluir</button>
+                            </td>
+                        </tr>
+                    `);
+
+                    // Botão de edição
+                    row.find('.edit-btn').on('click', function() {
+                        const docName = $(this).data('name');
+                        const docContent = documents[docName];
+                        $('#edit-document-name').val(docName);
+                        $('#edit-text-editor').html(docContent);
+
+                        // Oculta a lista de documentos e exibe o editor
+                        $('#document-list-section').hide();
+                        $('#edit-document-section').show();
+                    });
+
+                    // Botão de exclusão
+                    row.find('.delete-btn').on('click', function() {
+                        const docName = $(this).data('name');
+                        if (confirm(`Tem certeza que deseja excluir o documento "${docName}"?`)) {
+                            delete documents[docName];
+                            localStorage.setItem('documents', JSON.stringify(documents));
+                            updateDocumentTable();
+                        }
+                    });
+
+                    tableBody.append(row);
+                }
+            }
+
+            // Botão "Cancelar" na edição
+            $('#cancel-edit-btn').on('click', function() {
+                $('#edit-document-section').hide();
+                $('#document-list-section').show();
+            });
+
+            // Salvar edição do documento
+            $('#edit-document-form').on('submit', function(event) {
+                event.preventDefault();
+                const name = $('#edit-document-name').val();
+                const content = $('#edit-text-editor').html();
+
+                if (name && content) {
+                    documents[name] = content;
+                    localStorage.setItem('documents', JSON.stringify(documents));
+                    alert('Documento atualizado com sucesso!');
+                    updateDocumentTable();
+
+                    // Volta para a lista de documentos após salvar
+                    $('#edit-document-section').hide();
+                    $('#document-list-section').show();
+                } else {
+                    alert('Preencha todos os campos.');
+                }
+            });
+
+            // Atualiza a tabela ao carregar a página
+            updateDocumentTable();
+        });
+    </script>
+</body>
+</html>
+
+<%- include("bottom.ejs") %>

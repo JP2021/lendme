@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Editor de Texto</title>
+
+    <!-- Volt CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+   <link type="text/css" href="../../css/volt.css" rel="stylesheet"><link type="text/css" href="../../css/volt.css" rel="stylesheet">
+
+    <!-- TinyMCE -->
+    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+
+    <style>
+        /* Ajuste para o layout do Volt */
+        body {
+            display: flex;
+        }
+
+        #main-content {
+            margin-left: 250px;
+            padding: 20px;
+            width: 100%;
+        }
+
+        /* Garantir que o TinyMCE ocupe a altura correta */
+        textarea {
+            height: 500px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Sidebar do Volt -->
+    <nav id="sidebarMenu" class="sidebar d-lg-block bg-gray-800 text-white collapse" data-simplebar>
+        <ul class="nav flex-column pt-3 pt-md-0">
+            <li class="nav-item active">
+                <a href="#" class="nav-link">
+                    <span class="sidebar-icon">
+                        <svg class="icon icon-xs me-2" fill="currentColor" viewBox="0 0 20 20"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z"></path>
+                            <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z"></path>
+                        </svg>
+                    </span>
+                    <span class="sidebar-text">Editor</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" id="cadastro-link" class="nav-link">
+                    <span class="sidebar-text">Cadastro de Documentos</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Conteúdo principal -->
+    <main id="main-content">
+        <h1>Editor de Texto</h1>
+
+        <!-- Página do Editor -->
+        <div id="editor-page">
+            <button id="start-record-btn" class="btn btn-danger mt-2">Iniciar Gravação</button>
+            <button id="stop-record-btn" class="btn btn-primary mt-2">Parar Gravação</button>
+            <button id="cadastro-link-btn" class="btn btn-secondary mt-2">Ir para Cadastro</button>
+            <textarea id="text-editor"></textarea>
+        </div>
+
+        <!-- Página de Cadastro -->
+        <div id="cadastro-page" style="display: none;">
+            <h2>Cadastrar Documento</h2>
+            <form id="cadastro-form">
+                <div class="form-group">
+                    <label for="document-name">Nome do Documento</label>
+                    <input type="text" class="form-control" id="document-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="cadastro-text-editor">Conteúdo</label>
+                    <textarea id="cadastro-text-editor"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Cadastrar</button>
+            </form>
+        </div>
+    </main>
+
+    <!-- Script de Inicialização -->
+    <script>
+        $(document).ready(function () {
+            // Inicialização do TinyMCE
+            setTimeout(() => {
+                tinymce.init({
+                    selector: '#text-editor, #cadastro-text-editor',
+                    height: 500,
+                    language: 'pt_BR',
+                    menubar: true,
+                    plugins: 'autolink lists link image charmap print preview anchor searchreplace visualblocks code fullscreen insertdatetime media table paste code help wordcount',
+                    toolbar: 'undo redo | formatselect | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help',
+                    setup: function (editor) {
+                        editor.on('change', function () {
+                            editor.save();
+                        });
+                    }
+                });
+            }, 500);
+
+            // Alternância entre páginas
+            $('#cadastro-link, #cadastro-link-btn').on('click', function () {
+                $('#editor-page').hide();
+                $('#cadastro-page').show();
+            });
+
+            $('#editor-link').on('click', function () {
+                $('#editor-page').show();
+                $('#cadastro-page').hide();
+            });
+
+            // Cadastro de documentos
+            let documents = JSON.parse(localStorage.getItem('documents')) || {};
+
+            $('#cadastro-form').on('submit', function (event) {
+                event.preventDefault();
+                const name = $('#document-name').val();
+                const content = tinymce.get('cadastro-text-editor').getContent();
+
+                if (name && content) {
+                    documents[name] = content;
+                    localStorage.setItem('documents', JSON.stringify(documents));
+                    alert('Documento cadastrado com sucesso!');
+                    $('#cadastro-form')[0].reset();
+                    tinymce.get('cadastro-text-editor').setContent('');
+                } else {
+                    alert('Preencha todos os campos.');
+                }
+            });
+        });
+    </script>
+
+    <!-- Scripts do Volt -->
+    <script src="../../vendor/@popperjs/core/dist/umd/popper.min.js"></script>
+    <script src="../../vendor/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script src="../../assets/js/volt.js"></script>
+
+</body>
+
+</html>
