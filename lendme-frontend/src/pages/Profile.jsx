@@ -51,11 +51,32 @@ const Profile = () => {
       {/* Perfil Info */}
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="flex items-center space-x-6 mb-6">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-            <span className="text-white font-bold text-3xl">
-              {user?.name?.charAt(0).toUpperCase() || 'U'}
-            </span>
-          </div>
+          {user?.profilePic ? (
+            <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-slate-700">
+              <img 
+                src={getImageUrl(user.profilePic)} 
+                alt={user?.name || 'Perfil'} 
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Se a imagem falhar ao carregar, mostra o fallback
+                  e.target.style.display = 'none'
+                  const fallback = e.target.parentElement.querySelector('.avatar-fallback')
+                  if (fallback) fallback.style.display = 'flex'
+                }}
+              />
+              <div className="avatar-fallback hidden w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 items-center justify-center">
+                <span className="text-white font-bold text-3xl">
+                  {user?.name?.charAt(0).toUpperCase() || 'U'}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+              <span className="text-white font-bold text-3xl">
+                {user?.name?.charAt(0).toUpperCase() || 'U'}
+              </span>
+            </div>
+          )}
           <div className="flex-1">
             <div className="flex items-center space-x-4 mb-4">
               <div className="text-center">

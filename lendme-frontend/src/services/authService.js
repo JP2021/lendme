@@ -16,8 +16,21 @@ const api = axios.create({
 // Não redireciona automaticamente para evitar loops infinitos
 // O AuthContext e ProtectedRoute cuidam da navegação
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Verifica se a resposta é HTML (página de login) ao invés de JSON
+    const contentType = response.headers['content-type'] || '';
+    if (contentType.includes('text/html')) {
+      console.error('[API] Recebeu HTML ao invés de JSON:', response.config.url);
+      return Promise.reject(new Error('Resposta inválida do servidor (HTML ao invés de JSON). Verifique a autenticação.'));
+    }
+    return response;
+  },
   (error) => {
+    // Verifica se o erro é uma resposta HTML
+    if (error.response && error.response.headers['content-type']?.includes('text/html')) {
+      console.error('[API] Erro: recebeu HTML ao invés de JSON:', error.config?.url);
+      error.response.data = { message: 'Não autenticado. Faça login novamente.' };
+    }
     // Apenas rejeita o erro, sem redirecionar
     // Isso evita loops infinitos de atualização
     return Promise.reject(error)

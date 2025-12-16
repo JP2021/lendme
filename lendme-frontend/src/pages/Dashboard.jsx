@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { Home, Search, Plus, MessageCircle, Heart, RefreshCw } from 'lucide-react'
+import { Home, Search, Plus, MessageCircle, Heart, RefreshCw, Handshake } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import ProductCard from '../components/ProductCard'
 import BottomNavigation from '../components/BottomNavigation'
@@ -71,6 +71,9 @@ const Dashboard = () => {
               </button>
               <Link to="/explore" className="text-gray-300 hover:text-gray-100">
                 <Search size={24} />
+              </Link>
+              <Link to="/create-loan" className="text-gray-300 hover:text-gray-100" title="Pedir empréstimo">
+                <Handshake size={24} />
               </Link>
               <Link to="/add-product" className="text-gray-300 hover:text-gray-100">
                 <Plus size={24} />

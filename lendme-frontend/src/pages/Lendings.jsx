@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeftRight, Plus, Search, Package } from 'lucide-react'
+import { ArrowLeftRight, Plus, Search, Package, MessageCircle, Check } from 'lucide-react'
 import BottomNavigation from '../components/BottomNavigation'
 import { productService } from '../services/productService'
 import { tradeService } from '../services/tradeService'
@@ -16,8 +16,10 @@ const Trades = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadData()
-  }, [activeTab])
+    if (user) {
+      loadData()
+    }
+  }, [activeTab, user])
 
   const loadData = async () => {
     try {
@@ -29,16 +31,169 @@ const Trades = () => {
         const data = await tradeService.getTrades()
         setTrades(data.filter(t => t.status === 'accepted' || t.status === 'completed'))
       } else if (activeTab === 'requests') {
+        if (!user || !user._id) {
+          console.warn('[DEBUG] Usuário não disponível para filtrar solicitações')
+          setTradeRequests([])
+          return
+        }
+        
         const data = await tradeService.getTrades()
         // Filtra apenas solicitações RECEBIDAS (onde o usuário atual é o toUserId)
         // e que estão pendentes
-        const currentUserId = user?._id?.toString() || user?._id
+        const currentUserId = String(user._id?.toString ? user._id.toString() : user._id || '')
+        
+        console.log('[DEBUG] Usuário atual ID:', currentUserId)
+        console.log('[DEBUG] Total de trocas retornadas:', data.length)
+        
         const receivedRequests = data.filter(t => {
-          const tradeToUserId = t.toUserId?.toString() || t.toUserId
-          return t.status === 'pending' && tradeToUserId === currentUserId
+          // Normaliza os IDs para comparação
+          const tradeToUserId = String(t.toUserId || '')
+          const tradeFromUserId = String(t.fromUserId || '')
+          const isPending = t.status === 'pending'
+          const isReceived = isPending && tradeToUserId === currentUserId
+          
+          // Log detalhado para debug
+          if (isPending) {
+            console.log('[DEBUG] Troca pendente:', {
+              tradeId: t._id,
+              fromUserId: tradeFromUserId,
+              toUserId: tradeToUserId,
+              currentUserId: currentUserId,
+              matches: tradeToUserId === currentUserId,
+              fromUser: t.fromUser?.name,
+              toUser: t.toUser?.name,
+              fromProduct: t.fromProduct?.name,
+              toProduct: t.toProduct?.name
+            })
+          }
+          
+          return isReceived
         })
+        
         setTradeRequests(receivedRequests)
-        console.log('[DEBUG] Solicitações recebidas:', receivedRequests.length, 'de', data.length, 'total')
+        console.log('[DEBUG] Solicitações recebidas filtradas:', receivedRequests.length, 'de', data.length, 'total')
+        
+        if (receivedRequests.length === 0 && data.length > 0) {
+          console.warn('[DEBUG] Nenhuma solicitação recebida encontrada, mas há trocas pendentes. Verifique a comparação de IDs.')
+        }
+      } else if (activeTab === 'donations') {
+        // Carrega doações baseado na sub-aba selecionada
+        if (!user || !user._id) {
+          console.warn('[DEBUG] Usuário não disponível para filtrar doações')
+          setDonationRequests([])
+          setDonationReceived([])
+          setDonationSent([])
+          return
+        }
+        
+        try {
+          const [received, sent] = await Promise.all([
+            donationService.getDonations('received').catch(err => {
+              console.error('Erro ao buscar doações recebidas:', err)
+              return []
+            }),
+            donationService.getDonations('sent').catch(err => {
+              console.error('Erro ao buscar doações enviadas:', err)
+              return []
+            })
+          ])
+          
+          console.log('[DEBUG] Doações recebidas:', received.length)
+          console.log('[DEBUG] Doações enviadas:', sent.length)
+          
+          // Organiza por sub-aba
+          // received = doações onde o usuário é o dono (toUserId) - FEZ/DOOU
+          // sent = doações onde o usuário solicitou (fromUserId) - RECEBEU
+          if (donationSubTab === 'pending') {
+            // Solicitações pendentes recebidas (aguardando aprovação do dono)
+            const pending = received.filter(d => d.status === 'pending')
+            setDonationRequests(pending)
+            setDonationReceived([])
+            setDonationSent([])
+          } else if (donationSubTab === 'received') {
+            // Doações RECEBIDAS (o usuário é quem vai receber o produto) = sent (ele solicitou)
+            const receivedDonations = sent.filter(d => d.status === 'accepted' || d.status === 'confirmed')
+            setDonationRequests([])
+            setDonationReceived(receivedDonations)
+            setDonationSent([])
+          } else if (donationSubTab === 'sent') {
+            // Doações FEITAS (o usuário doou) = received (ele é o dono)
+            // Mostra todas as doações feitas (aceitas, confirmadas e até rejeitadas para histórico)
+            const madeDonations = received.filter(d => 
+              d.status === 'accepted' || 
+              d.status === 'confirmed' || 
+              d.status === 'rejected'
+            )
+            console.log('[DEBUG] Doações feitas filtradas:', madeDonations.length, 'de', received.length, 'recebidas')
+            console.log('[DEBUG] Status das doações recebidas:', received.map(d => ({ id: d._id, status: d.status })))
+            setDonationRequests([])
+            setDonationReceived([])
+            setDonationSent(madeDonations)
+          }
+        } catch (error) {
+          console.error('Erro ao carregar doações:', error)
+          setDonationRequests([])
+          setDonationReceived([])
+          setDonationSent([])
+        }
+      } else if (activeTab === 'loans') {
+        // Carrega empréstimos baseado na sub-aba selecionada
+        if (!user || !user._id) {
+          console.warn('[DEBUG] Usuário não disponível para filtrar empréstimos')
+          setLoanRequests([])
+          setLoanReceived([])
+          setLoanSent([])
+          return
+        }
+        
+        try {
+          const [received, sent] = await Promise.all([
+            loanService.getLoans('received').catch(err => {
+              console.error('Erro ao buscar empréstimos recebidos:', err)
+              return []
+            }),
+            loanService.getLoans('sent').catch(err => {
+              console.error('Erro ao buscar empréstimos enviados:', err)
+              return []
+            })
+          ])
+          
+          console.log('[DEBUG] Empréstimos recebidos:', received.length)
+          console.log('[DEBUG] Empréstimos enviados:', sent.length)
+          
+          // Organiza por sub-aba
+          // received = empréstimos onde o usuário é o emprestador (lenderId) - FEZ/EMPRESTOU
+          // sent = empréstimos onde o usuário solicitou (requesterId) - RECEBEU
+          if (loanSubTab === 'pending') {
+            // Solicitações pendentes: pedidos que o usuário fez (sent) e ofertas que recebeu (received)
+            const pendingSent = sent.filter(l => l.status === 'pending' || l.status === 'offered')
+            const pendingReceived = received.filter(l => l.status === 'offered' || l.status === 'pending')
+            setLoanRequests([...pendingSent, ...pendingReceived])
+            setLoanReceived([])
+            setLoanSent([])
+          } else if (loanSubTab === 'received') {
+            // Empréstimos RECEBIDOS (o usuário é quem vai receber o produto) = sent (ele solicitou)
+            const receivedLoans = sent.filter(l => l.status === 'accepted' || l.status === 'confirmed')
+            setLoanRequests([])
+            setLoanReceived(receivedLoans)
+            setLoanSent([])
+          } else if (loanSubTab === 'sent') {
+            // Empréstimos FEITOS (o usuário emprestou) = received (ele é o emprestador)
+            const madeLoans = received.filter(l => 
+              l.status === 'accepted' || 
+              l.status === 'confirmed' || 
+              l.status === 'offered'
+            )
+            setLoanRequests([])
+            setLoanReceived([])
+            setLoanSent(madeLoans)
+          }
+        } catch (error) {
+          console.error('Erro ao carregar empréstimos:', error)
+          setLoanRequests([])
+          setLoanReceived([])
+          setLoanSent([])
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
@@ -78,6 +233,7 @@ const Trades = () => {
       alert('Erro ao recusar troca')
     }
   }
+
 
   return (
     <div className="min-h-screen bg-slate-950 pb-20">
@@ -127,6 +283,58 @@ const Trades = () => {
             Solicitações ({tradeRequests.length})
           </button>
         </div>
+
+
+        {/* Sub-abas de Empréstimos */}
+        {activeTab === 'loans' && (
+          <div className="flex space-x-2 mb-6 border-b border-slate-800 overflow-x-auto">
+            <button
+              onClick={() => setLoanSubTab('pending')}
+              className={`px-4 py-2 font-medium transition-colors text-sm whitespace-nowrap ${
+                loanSubTab === 'pending'
+                  ? 'text-purple-400 border-b-2 border-purple-400'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              Pendentes
+              {loanRequests.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full text-xs">
+                  {loanRequests.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setLoanSubTab('received')}
+              className={`px-4 py-2 font-medium transition-colors text-sm whitespace-nowrap ${
+                loanSubTab === 'received'
+                  ? 'text-purple-400 border-b-2 border-purple-400'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              Recebidos
+              {loanReceived.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-xs">
+                  {loanReceived.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setLoanSubTab('sent')}
+              className={`px-4 py-2 font-medium transition-colors text-sm whitespace-nowrap ${
+                loanSubTab === 'sent'
+                  ? 'text-purple-400 border-b-2 border-purple-400'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              Feitos
+              {loanSent.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full text-xs">
+                  {loanSent.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         {loading ? (
@@ -308,6 +516,432 @@ const Trades = () => {
                       >
                         Recusar
                       </button>
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'donations' && donationSubTab === 'pending' && (
+          <div className="space-y-4">
+            {donationRequests.length === 0 ? (
+              <div className="bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800">
+                <div className="text-center py-8">
+                  <Gift className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400">Nenhuma solicitação de doação pendente</p>
+                </div>
+              </div>
+            ) : (
+              donationRequests.map((donation) => (
+                <Link
+                  key={donation._id}
+                  to={`/donations/${donation._id}`}
+                  className="block bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800 hover:border-green-500 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 flex-1">
+                      {donation.product?.images?.[0] ? (
+                        <img 
+                          src={getImageUrl(donation.product.images[0])} 
+                          alt={donation.product.name} 
+                          className="w-16 h-16 rounded-lg object-cover" 
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-slate-800 rounded-lg flex items-center justify-center">
+                          <Package className="w-8 h-8 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Gift size={20} className="text-green-400" />
+                          <h3 className="text-lg font-semibold text-gray-100">{donation.product?.name}</h3>
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          <span className="font-semibold text-gray-300">{donation.fromUser?.name || 'Usuário'}</span> quer receber sua doação
+                        </p>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
+                            Pendente
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(donation.createdAt).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
+        {false && (
+          <div className="space-y-4">
+            {donationReceived.length === 0 ? (
+              <div className="bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800">
+                <div className="text-center py-8">
+                  <Gift className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400">Você ainda não recebeu nenhuma doação aceita</p>
+                </div>
+              </div>
+            ) : (
+              donationReceived.map((donation) => (
+                <Link
+                  key={donation._id}
+                  to={`/donations/${donation._id}`}
+                  className="block bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800 hover:border-green-500 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 flex-1">
+                      {donation.product?.images?.[0] ? (
+                        <img 
+                          src={getImageUrl(donation.product.images[0])} 
+                          alt={donation.product.name} 
+                          className="w-16 h-16 rounded-lg object-cover" 
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-slate-800 rounded-lg flex items-center justify-center">
+                          <Package className="w-8 h-8 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Gift size={20} className="text-green-400" />
+                          <h3 className="text-lg font-semibold text-gray-100">{donation.product?.name}</h3>
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          Você vai receber esta doação de <span className="font-semibold text-gray-300">{donation.toUser?.name || 'Usuário'}</span>
+                        </p>
+                        <div className="flex items-center space-x-2 mt-2 flex-wrap">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            donation.status === 'confirmed' ? 'bg-green-500/20 text-green-400' :
+                            'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            {donation.status === 'confirmed' ? 'Confirmada' : 'Aceita'}
+                          </span>
+                          {donation.status === 'accepted' && (
+                            <>
+                              <span className="text-xs text-blue-400 flex items-center">
+                                <MessageCircle size={12} className="mr-1" />
+                                Conversa ativa
+                              </span>
+                              <span className="text-xs text-orange-400">
+                                Aguardando você confirmar recebimento
+                              </span>
+                            </>
+                          )}
+                          {donation.status === 'confirmed' && (
+                            <span className="text-xs text-green-400 flex items-center">
+                              <Check size={12} className="mr-1" />
+                              Recebimento confirmado
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(donation.createdAt).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
+        {false && (
+          <div className="space-y-4">
+            {donationSent.length === 0 ? (
+              <div className="bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800">
+                <div className="text-center py-8">
+                  <Gift className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400">Você ainda não solicitou nenhuma doação</p>
+                </div>
+              </div>
+            ) : (
+              donationSent.map((donation) => (
+                <Link
+                  key={donation._id}
+                  to={`/donations/${donation._id}`}
+                  className="block bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800 hover:border-green-500 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 flex-1">
+                      {donation.product?.images?.[0] ? (
+                        <img 
+                          src={getImageUrl(donation.product.images[0])} 
+                          alt={donation.product.name} 
+                          className="w-16 h-16 rounded-lg object-cover" 
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-slate-800 rounded-lg flex items-center justify-center">
+                          <Package className="w-8 h-8 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Gift size={20} className="text-green-400" />
+                          <h3 className="text-lg font-semibold text-gray-100">{donation.product?.name}</h3>
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          Você doou para <span className="font-semibold text-gray-300">{donation.fromUser?.name || 'Usuário'}</span>
+                        </p>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            donation.status === 'confirmed' ? 'bg-green-500/20 text-green-400' :
+                            donation.status === 'accepted' ? 'bg-blue-500/20 text-blue-400' :
+                            donation.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                            'bg-yellow-500/20 text-yellow-400'
+                          }`}>
+                            {donation.status === 'confirmed' ? 'Confirmada' :
+                             donation.status === 'accepted' ? 'Aceita' :
+                             donation.status === 'rejected' ? 'Recusada' :
+                             'Pendente'}
+                          </span>
+                          {donation.status === 'accepted' && (
+                            <>
+                              <span className="text-xs text-blue-400 flex items-center">
+                                <MessageCircle size={12} className="mr-1" />
+                                Conversa ativa
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                Aguardando confirmação de recebimento
+                              </span>
+                            </>
+                          )}
+                          {donation.status === 'confirmed' && (
+                            <span className="text-xs text-green-400 flex items-center">
+                              <Check size={12} className="mr-1" />
+                              Recebimento confirmado pelo receptor
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(donation.createdAt).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Seção de Empréstimos */}
+        {activeTab === 'loans' && loanSubTab === 'pending' && (
+          <div className="space-y-4">
+            {loanRequests.length === 0 ? (
+              <div className="bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800">
+                <div className="text-center py-8">
+                  <Handshake className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400">Nenhum empréstimo pendente</p>
+                </div>
+              </div>
+            ) : (
+              loanRequests.map((loan) => (
+                <Link
+                  key={loan._id}
+                  to={`/loans/${loan._id}`}
+                  className="block bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800 hover:border-purple-500 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 flex-1">
+                      {loan.product?.images?.[0] ? (
+                        <img 
+                          src={getImageUrl(loan.product.images[0])} 
+                          alt={loan.product.name} 
+                          className="w-16 h-16 rounded-lg object-cover" 
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-slate-800 rounded-lg flex items-center justify-center">
+                          <Handshake className="w-8 h-8 text-purple-400" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Handshake size={20} className="text-purple-400" />
+                          <h3 className="text-lg font-semibold text-gray-100">
+                            {loan.product?.name || loan.itemName}
+                          </h3>
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          {loan.status === 'offered' 
+                            ? `Oferta de ${loan.lender?.name || 'Usuário'}`
+                            : `Solicitado por ${loan.requester?.name || 'Usuário'}`}
+                        </p>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            loan.status === 'offered' ? 'bg-purple-500/20 text-purple-400' :
+                            'bg-yellow-500/20 text-yellow-400'
+                          }`}>
+                            {loan.status === 'offered' ? 'Oferta recebida' : 'Pendente'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(loan.createdAt).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'loans' && loanSubTab === 'received' && (
+          <div className="space-y-4">
+            {loanReceived.length === 0 ? (
+              <div className="bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800">
+                <div className="text-center py-8">
+                  <Handshake className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400">Você ainda não recebeu nenhum empréstimo aceito</p>
+                </div>
+              </div>
+            ) : (
+              loanReceived.map((loan) => (
+                <Link
+                  key={loan._id}
+                  to={`/loans/${loan._id}`}
+                  className="block bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800 hover:border-purple-500 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 flex-1">
+                      {loan.product?.images?.[0] ? (
+                        <img 
+                          src={getImageUrl(loan.product.images[0])} 
+                          alt={loan.product.name} 
+                          className="w-16 h-16 rounded-lg object-cover" 
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-slate-800 rounded-lg flex items-center justify-center">
+                          <Handshake className="w-8 h-8 text-purple-400" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Handshake size={20} className="text-purple-400" />
+                          <h3 className="text-lg font-semibold text-gray-100">
+                            {loan.product?.name || loan.itemName}
+                          </h3>
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          Emprestado por <span className="font-semibold text-gray-300">{loan.lender?.name || 'Usuário'}</span>
+                        </p>
+                        <div className="flex items-center space-x-2 mt-2 flex-wrap">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            loan.status === 'confirmed' ? 'bg-green-500/20 text-green-400' :
+                            'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            {loan.status === 'confirmed' ? 'Confirmado' : 'Aceito'}
+                          </span>
+                          {loan.status === 'accepted' && (
+                            <>
+                              <span className="text-xs text-blue-400 flex items-center">
+                                <MessageCircle size={12} className="mr-1" />
+                                Conversa ativa
+                              </span>
+                              <span className="text-xs text-orange-400">
+                                Aguardando você confirmar recebimento
+                              </span>
+                            </>
+                          )}
+                          {loan.status === 'confirmed' && (
+                            <span className="text-xs text-green-400 flex items-center">
+                              <Check size={12} className="mr-1" />
+                              Recebimento confirmado
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(loan.createdAt).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'loans' && loanSubTab === 'sent' && (
+          <div className="space-y-4">
+            {loanSent.length === 0 ? (
+              <div className="bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800">
+                <div className="text-center py-8">
+                  <Handshake className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400">Você ainda não emprestou nenhum produto</p>
+                </div>
+              </div>
+            ) : (
+              loanSent.map((loan) => (
+                <Link
+                  key={loan._id}
+                  to={`/loans/${loan._id}`}
+                  className="block bg-slate-900 rounded-xl shadow-lg p-6 border border-slate-800 hover:border-purple-500 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 flex-1">
+                      {loan.product?.images?.[0] ? (
+                        <img 
+                          src={getImageUrl(loan.product.images[0])} 
+                          alt={loan.product.name} 
+                          className="w-16 h-16 rounded-lg object-cover" 
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-slate-800 rounded-lg flex items-center justify-center">
+                          <Handshake className="w-8 h-8 text-purple-400" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Handshake size={20} className="text-purple-400" />
+                          <h3 className="text-lg font-semibold text-gray-100">
+                            {loan.product?.name || loan.itemName}
+                          </h3>
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          Emprestado para <span className="font-semibold text-gray-300">{loan.requester?.name || 'Usuário'}</span>
+                        </p>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            loan.status === 'confirmed' ? 'bg-green-500/20 text-green-400' :
+                            loan.status === 'accepted' ? 'bg-blue-500/20 text-blue-400' :
+                            loan.status === 'offered' ? 'bg-purple-500/20 text-purple-400' :
+                            'bg-yellow-500/20 text-yellow-400'
+                          }`}>
+                            {loan.status === 'confirmed' ? 'Confirmado' :
+                             loan.status === 'accepted' ? 'Aceito' :
+                             loan.status === 'offered' ? 'Oferta enviada' :
+                             'Pendente'}
+                          </span>
+                          {loan.status === 'accepted' && (
+                            <>
+                              <span className="text-xs text-blue-400 flex items-center">
+                                <MessageCircle size={12} className="mr-1" />
+                                Conversa ativa
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                Aguardando confirmação de recebimento
+                              </span>
+                            </>
+                          )}
+                          {loan.status === 'confirmed' && (
+                            <span className="text-xs text-green-400 flex items-center">
+                              <Check size={12} className="mr-1" />
+                              Recebimento confirmado pelo receptor
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(loan.createdAt).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </Link>

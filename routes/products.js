@@ -42,7 +42,7 @@ const upload = multer({
 router.post('/products', ensureApiAuthenticated, upload.array('images', 5), async (req, res) => {
   try {
     const userId = req.user._id.toString();
-    const { name, description, category, condition } = req.body;
+    const { name, description, category, condition, type } = req.body;
     
     if (!name) {
       return res.status(400).json({ message: 'Nome do produto é obrigatório' });
@@ -56,6 +56,7 @@ router.post('/products', ensureApiAuthenticated, upload.array('images', 5), asyn
       description: description || '',
       category: category || 'Outros',
       condition: condition || 'good',
+      type: type || 'trade', // 'trade', 'donation', 'loan'
       images,
     });
 
@@ -116,8 +117,8 @@ router.get('/products', ensureApiAuthenticated, async (req, res) => {
       const productUserId = p.userId?.toString ? p.userId.toString() : String(p.userId);
       const productId = p._id?.toString ? p._id.toString() : String(p._id);
       
-      // INCLUI produtos trocados (devem aparecer no feed com status especial)
-      if (p.status === 'traded') {
+      // INCLUI produtos trocados, doados, doação aceita ou emprestados (devem aparecer no feed com status especial)
+      if (p.status === 'traded' || p.status === 'donated' || p.status === 'donation_accepted' || p.status === 'loan_accepted' || p.status === 'loaned') {
         return true;
       }
       
@@ -159,9 +160,31 @@ router.get('/products', ensureApiAuthenticated, async (req, res) => {
       return false;
     });
 
+    // Busca pedidos de empréstimo para incluir no feed (todos os pedidos pendentes sem lenderId)
+    const loanRequests = await db.getLoanRequests(userId, 'feed');
+    const loanFeedItems = loanRequests.map(loan => ({
+      _id: loan._id,
+      type: 'loan_request',
+      name: `${loan.requester?.name || 'Usuário'} precisa de ${loan.itemName || 'um item'}`,
+      description: `Pedido de empréstimo`,
+      userId: loan.requesterId,
+      user: loan.requester,
+      status: 'pending',
+      createdAt: loan.createdAt,
+      loan: loan,
+    }));
+
+    // Combina produtos e pedidos de empréstimo, ordenando por data
+    const feedItems = [...visibleProducts, ...loanFeedItems].sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0);
+      const dateB = new Date(b.createdAt || 0);
+      return dateB - dateA;
+    });
+
     console.log(`[Feed] Produtos visíveis: ${visibleProducts.length} de ${allProducts.length} para usuário ${userIdStr}`);
+    console.log(`[Feed] Pedidos de empréstimo: ${loanFeedItems.length}`);
     console.log(`[Feed] Amigos: ${friendIds.length}`);
-    return res.json(visibleProducts);
+    return res.json(feedItems);
   } catch (err) {
     console.error('Erro ao listar produtos:', err);
     return res.status(500).json({ message: 'Erro ao listar produtos' });
@@ -188,6 +211,90 @@ router.get('/products/my', ensureApiAuthenticated, async (req, res) => {
   }
 });
 
+// Listar produtos de um usuário específico (apenas disponíveis)
+router.get('/users/:userId/products', ensureApiAuthenticated, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user._id.toString();
+    
+    // Verifica se o usuário existe e se o perfil é acessível
+    const user = await db.findUser(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuário não encontrado' });
+    }
+    
+    // Por padrão, se isPublic não estiver definido, considera como público (true)
+    // isPublic === false significa privado, qualquer outro valor (true, undefined, null) significa público
+    const isPublic = user.isPublic !== false;
+    const friends = await db.getFriends(currentUserId);
+    
+    // Normaliza os IDs para comparação
+    const normalizedUserId = userId.toString();
+    const normalizedCurrentUserId = currentUserId.toString();
+    
+    // Normaliza todos os IDs de amigos para comparação
+    const friendIds = friends.map(f => {
+      const friendId = f._id?.toString() || f._id;
+      return friendId.toString();
+    });
+    
+    console.log('[DEBUG getUserProducts] Verificando amizade:', {
+      currentUserId: normalizedCurrentUserId,
+      targetUserId: normalizedUserId,
+      friendsCount: friends.length,
+      friendIds: friendIds
+    });
+    
+    // Compara os IDs de forma mais robusta
+    const isFriend = friendIds.includes(normalizedUserId);
+    
+    if (isFriend) {
+      console.log('[DEBUG getUserProducts] ✓ Amigo encontrado!');
+    } else {
+      console.log('[DEBUG getUserProducts] ✗ Não é amigo');
+    }
+    
+    const isOwnProfile = normalizedCurrentUserId === normalizedUserId;
+    
+    // Verifica se o usuário atual é admin (profile === 2)
+    const currentUser = await db.findUser(currentUserId);
+    const isAdmin = currentUser?.profile === 2;
+    
+    console.log('[DEBUG getUserProducts] Verificação de acesso:', {
+      isPublic,
+      isFriend,
+      isOwnProfile,
+      isAdmin,
+      currentUserProfile: currentUser?.profile,
+      canAccess: isPublic || isFriend || isOwnProfile || isAdmin
+    });
+    
+    // Admin pode ver todos os produtos
+    // Se não é público e não é amigo e não é o próprio perfil e não é admin, retorna erro
+    if (!isPublic && !isFriend && !isOwnProfile && !isAdmin) {
+      console.log('[DEBUG getUserProducts] Acesso negado - perfil privado');
+      return res.status(403).json({ message: 'Este perfil é privado' });
+    }
+    
+    console.log('[DEBUG getUserProducts] Acesso permitido');
+    
+    // Busca apenas produtos disponíveis do usuário
+    const products = await db.getProducts(userId);
+    console.log('[DEBUG getUserProducts] Produtos retornados:', products?.length || 0, 'tipo:', Array.isArray(products) ? 'array' : typeof products);
+    
+    // Garante que products seja um array
+    const productsArray = Array.isArray(products) ? products : [];
+    const availableProducts = productsArray.filter(p => p.status === 'available');
+    
+    console.log('[DEBUG getUserProducts] Produtos disponíveis:', availableProducts.length);
+    
+    return res.json(availableProducts);
+  } catch (err) {
+    console.error('Erro ao listar produtos do usuário:', err);
+    return res.status(500).json({ message: 'Erro ao listar produtos' });
+  }
+});
+
 // Buscar produto específico
 router.get('/products/:productId', ensureApiAuthenticated, async (req, res) => {
   try {
@@ -210,13 +317,14 @@ router.put('/products/:productId', ensureApiAuthenticated, upload.array('images'
   try {
     const userId = req.user._id.toString();
     const { productId } = req.params;
-    const { name, description, category, condition, existingImages } = req.body;
+    const { name, description, category, condition, existingImages, type } = req.body;
 
     const updates = {};
     if (name) updates.name = name;
     if (description !== undefined) updates.description = description;
     if (category) updates.category = category;
     if (condition) updates.condition = condition;
+    if (type) updates.type = type;
 
     // Gerencia imagens: preserva existentes e adiciona novas
     if (req.files && req.files.length > 0) {

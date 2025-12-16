@@ -74,6 +74,12 @@ app.use('/api', require('./routes/products'));
 app.use('/api', require('./routes/trades'));
 app.use('/api', require('./routes/tradeMessages'));
 app.use('/api', require('./routes/profile'));
+app.use('/api', require('./routes/notifications'));
+app.use('/api', require('./routes/donations'));
+app.use('/api', require('./routes/donationMessages'));
+app.use('/api', require('./routes/loans'));
+app.use('/api', require('./routes/loanMessages'));
+app.use('/api', require('./routes/messages'));
 
 
 

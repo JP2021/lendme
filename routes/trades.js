@@ -50,7 +50,29 @@ router.post('/trades', ensureApiAuthenticated, async (req, res) => {
       toProductId,
     });
 
-    return res.json({ message: 'Solicitação de troca criada', trade });
+    console.log('[DEBUG Trade] Troca criada:', {
+      tradeId: trade.insertedId.toString(),
+      fromUserId,
+      toUserId,
+      fromProductId,
+      toProductId,
+      status: 'pending'
+    });
+
+    // Cria notificação para o usuário que recebeu a solicitação
+    await db.createNotification({
+      userId: toUserId,
+      fromUserId,
+      type: 'trade_request',
+      title: 'Nova solicitação de troca',
+      message: `${req.user.name || 'Um usuário'} quer trocar ${fromProduct.name} por ${toProduct.name}`,
+      relatedId: trade.insertedId.toString(),
+    });
+
+    // Busca a troca criada com todas as informações populadas
+    const createdTrade = await db.getTradeById(trade.insertedId.toString());
+
+    return res.json({ message: 'Solicitação de troca criada', trade: createdTrade });
   } catch (err) {
     console.error('Erro ao criar troca:', err);
     return res.status(500).json({ message: 'Erro ao criar troca' });
@@ -70,13 +92,15 @@ router.get('/trades', ensureApiAuthenticated, async (req, res) => {
       trades = trades.filter(t => t.status === status);
     }
 
-    console.log(`[DEBUG] Trades retornados para usuário ${userId}:`, trades.length);
+    console.log(`[DEBUG Trade] Trades retornados para usuário ${userId}:`, trades.length);
     trades.forEach((t, idx) => {
-      console.log(`[DEBUG] Trade ${idx + 1}:`, {
+      console.log(`[DEBUG Trade] Trade ${idx + 1}:`, {
         _id: t._id,
         fromUserId: t.fromUserId,
         toUserId: t.toUserId,
-        status: t.status
+        status: t.status,
+        fromUser: t.fromUser?.name,
+        toUser: t.toUser?.name
       });
     });
 
@@ -120,7 +144,24 @@ router.post('/trades/:tradeId/accept', ensureApiAuthenticated, async (req, res) 
     const userId = req.user._id.toString();
     const { tradeId } = req.params;
 
+    const trade = await db.getTradeById(tradeId);
+    if (!trade) {
+      return res.status(404).json({ message: 'Troca não encontrada' });
+    }
+
     await db.updateTradeStatus(tradeId, userId, 'accepted');
+
+    // Cria notificação para o outro usuário
+    const otherUserId = trade.fromUserId === userId ? trade.toUserId : trade.fromUserId;
+    await db.createNotification({
+      userId: otherUserId,
+      fromUserId: userId,
+      type: 'trade_accepted',
+      title: 'Troca aceita',
+      message: `${req.user.name || 'O usuário'} aceitou sua solicitação de troca`,
+      relatedId: tradeId,
+    });
+
     return res.json({ message: 'Troca aceita' });
   } catch (err) {
     console.error('Erro ao aceitar troca:', err);
@@ -211,6 +252,25 @@ router.post('/trades/:tradeId/complete', ensureApiAuthenticated, async (req, res
     );
     console.log(`[Trade Complete] ${trade.toProduct?.name || 'Produto'} (${trade.toProductId}) transferido de ${trade.toUser?.name || trade.toUserId} para ${trade.fromUser?.name || trade.fromUserId}`);
     console.log(`[Trade Complete] Update result:`, toProductUpdate.modifiedCount, 'documentos modificados');
+
+    // Cria notificações para ambos os usuários
+    await db.createNotification({
+      userId: trade.fromUserId,
+      fromUserId: trade.toUserId,
+      type: 'trade_completed',
+      title: 'Troca concluída',
+      message: `Você trocou ${trade.fromProduct?.name || 'seu produto'} por ${trade.toProduct?.name || 'o produto'}`,
+      relatedId: tradeId,
+    });
+
+    await db.createNotification({
+      userId: trade.toUserId,
+      fromUserId: trade.fromUserId,
+      type: 'trade_completed',
+      title: 'Troca concluída',
+      message: `Você trocou ${trade.toProduct?.name || 'seu produto'} por ${trade.fromProduct?.name || 'o produto'}`,
+      relatedId: tradeId,
+    });
 
     return res.json({ message: 'Troca concluída' });
   } catch (err) {

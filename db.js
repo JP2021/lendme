@@ -272,28 +272,95 @@ async function addFriendRelation(userId1, userId2) {
     const id1 = ObjectId.createFromHexString(userId1.toString());
     const id2 = ObjectId.createFromHexString(userId2.toString());
 
-    await users.updateOne(
+    console.log('[DEBUG addFriendRelation] Adicionando amizade:', {
+        userId1: userId1.toString(),
+        userId2: userId2.toString(),
+        id1: id1.toString(),
+        id2: id2.toString()
+    });
+
+    // Adiciona id2 ao array de amigos de id1
+    const result1 = await users.updateOne(
         { _id: id1 },
         { $addToSet: { friends: id2 } }
     );
+    console.log('[DEBUG addFriendRelation] Resultado update1:', {
+        matched: result1.matchedCount,
+        modified: result1.modifiedCount
+    });
 
-    await users.updateOne(
+    // Adiciona id1 ao array de amigos de id2
+    const result2 = await users.updateOne(
         { _id: id2 },
         { $addToSet: { friends: id1 } }
     );
+    console.log('[DEBUG addFriendRelation] Resultado update2:', {
+        matched: result2.matchedCount,
+        modified: result2.modifiedCount
+    });
+
+    // Verifica se foi adicionado corretamente
+    const user1 = await users.findOne({ _id: id1 });
+    const user2 = await users.findOne({ _id: id2 });
+    
+    console.log('[DEBUG addFriendRelation] Verificação final:', {
+        user1Friends: user1?.friends?.length || 0,
+        user2Friends: user2?.friends?.length || 0,
+        user1HasId2: user1?.friends?.some(f => f.toString() === id2.toString()),
+        user2HasId1: user2?.friends?.some(f => f.toString() === id1.toString())
+    });
 }
 
 async function getFriends(userId) {
     const conn = await connect();
     const id = ObjectId.createFromHexString(userId.toString());
     const user = await conn.collection("users").findOne({ _id: id });
-    if (!user || !user.friends || user.friends.length === 0) return [];
-
-    return conn
+    
+    if (!user) {
+        console.log(`[DEBUG getFriends] Usuário não encontrado: ${userId}`);
+        return [];
+    }
+    
+    if (!user.friends || user.friends.length === 0) {
+        console.log(`[DEBUG getFriends] Usuário ${userId} não tem amigos no array friends`);
+        return [];
+    }
+    
+    console.log(`[DEBUG getFriends] Usuário ${userId} tem ${user.friends.length} amigos no array`);
+    
+    // Converte os IDs do array friends para ObjectId se necessário
+    const friendIds = user.friends.map(friendId => {
+        if (friendId instanceof ObjectId) {
+            return friendId;
+        }
+        return ObjectId.createFromHexString(friendId.toString());
+    });
+    
+    const friends = await conn
         .collection("users")
-        .find({ _id: { $in: user.friends } })
+        .find({ _id: { $in: friendIds } })
         .project({ password: 0 })
         .toArray();
+    
+    console.log(`[DEBUG getFriends] Encontrados ${friends.length} amigos no banco`);
+    
+    // Normaliza os IDs para string e garante que todos os campos necessários estejam presentes
+    const normalizedFriends = friends.map(friend => {
+        const normalizedId = friend._id?.toString() || friend._id;
+        console.log(`[DEBUG getFriends] Normalizando amigo:`, {
+            originalId: friend._id,
+            normalizedId: normalizedId,
+            name: friend.name
+        });
+        return {
+            ...friend,
+            _id: normalizedId
+        };
+    });
+    
+    console.log(`[DEBUG getFriends] IDs normalizados:`, normalizedFriends.map(f => f._id));
+    
+    return normalizedFriends;
 }
 
 // ======= Funções relacionadas a solicitações de amizade (friendRequests) =======
@@ -393,14 +460,31 @@ async function getFriendRequests(userId, type = 'received') {
 async function acceptFriendRequest(requestId, fromUserId, toUserId) {
     const conn = await connect();
     
+    console.log('[DEBUG acceptFriendRequest] Aceitando solicitação:', {
+        requestId,
+        fromUserId,
+        toUserId
+    });
+    
     // Atualiza status da solicitação
-    await conn.collection("friendRequests").updateOne(
+    const updateResult = await conn.collection("friendRequests").updateOne(
         { _id: ObjectId.createFromHexString(requestId.toString()) },
         { $set: { status: 'accepted', acceptedAt: new Date() } }
     );
     
+    console.log('[DEBUG acceptFriendRequest] Solicitação atualizada:', updateResult.modifiedCount);
+    
     // Cria relação de amizade mútua
     await addFriendRelation(fromUserId, toUserId);
+    
+    // Verifica se a amizade foi criada
+    const user1 = await conn.collection("users").findOne({ _id: ObjectId.createFromHexString(fromUserId.toString()) });
+    const user2 = await conn.collection("users").findOne({ _id: ObjectId.createFromHexString(toUserId.toString()) });
+    
+    console.log('[DEBUG acceptFriendRequest] Verificação pós-adição:', {
+        user1Friends: user1?.friends?.length || 0,
+        user2Friends: user2?.friends?.length || 0
+    });
 }
 
 async function rejectFriendRequest(requestId) {
@@ -431,6 +515,7 @@ async function createProduct(product) {
         userId: ObjectId.createFromHexString(product.userId.toString()),
         createdAt: new Date(),
         status: 'available',
+        type: product.type || 'trade', // 'trade', 'donation', 'loan'
     });
 }
 
@@ -440,18 +525,24 @@ async function getProducts(userId = null, filters = {}) {
     // Constrói a query base
     const query = {};
     
-    // Se tem userId, filtra por userId E status (available ou traded)
+    // Se tem userId, filtra por userId E status (available, traded, donated, donation_accepted, loaned)
     if (userId) {
         query.userId = ObjectId.createFromHexString(userId.toString());
         query.$or = [
             { status: 'available' },
-            { status: 'traded' }
+            { status: 'traded' },
+            { status: 'donated' },
+            { status: 'donation_accepted' },
+            { status: 'loaned' }
         ];
     } else {
-        // Se não tem userId, busca todos os produtos disponíveis ou trocados
+        // Se não tem userId, busca todos os produtos disponíveis, trocados, doados ou emprestados
         query.$or = [
             { status: 'available' },
-            { status: 'traded' }
+            { status: 'traded' },
+            { status: 'donated' },
+            { status: 'donation_accepted' },
+            { status: 'loaned' }
         ];
     }
     
@@ -497,12 +588,21 @@ async function getProducts(userId = null, filters = {}) {
         .project({ password: 0 })
         .toArray();
     
-    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+    const userMap = new Map(users.map(u => [u._id.toString(), {
+        ...u,
+        _id: u._id?.toString() || u._id
+    }]));
     
-    return products.map(product => ({
-        ...product,
-        user: userMap.get(product.userId.toString())
-    }));
+    return products.map(product => {
+        const user = userMap.get(product.userId.toString());
+        return {
+            ...product,
+            user: user ? {
+                ...user,
+                _id: user._id?.toString() || user._id
+            } : null
+        };
+    });
 }
 
 async function getProduct(productId) {
@@ -518,7 +618,13 @@ async function getProduct(productId) {
         { projection: { password: 0 } }
     );
     
-    return { ...product, user };
+    return {
+        ...product,
+        user: user ? {
+            ...user,
+            _id: user._id?.toString() || user._id
+        } : null
+    };
 }
 
 async function updateProduct(productId, userId, updates) {
@@ -716,6 +822,892 @@ async function searchPublicUsers(query, excludeUserId) {
         .toArray();
 }
 
+// ======= Funções relacionadas a notificações (notifications) =======
+
+async function createNotification(notification) {
+    const conn = await connect();
+    return conn.collection("notifications").insertOne({
+        ...notification,
+        userId: ObjectId.createFromHexString(notification.userId.toString()),
+        read: false,
+        createdAt: new Date(),
+    });
+}
+
+async function getNotifications(userId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(userId.toString());
+    
+    const notifications = await conn.collection("notifications")
+        .find({ userId: id })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .toArray();
+    
+    // Popula informações dos usuários relacionados se houver
+    const userIds = notifications
+        .map(n => n.fromUserId || n.relatedUserId)
+        .filter(id => id);
+    
+    if (userIds.length > 0) {
+        const users = await conn.collection("users")
+            .find({ _id: { $in: userIds.map(id => ObjectId.createFromHexString(id.toString())) } })
+            .project({ password: 0 })
+            .toArray();
+        
+        const userMap = new Map(users.map(u => [u._id.toString(), u]));
+        
+        return notifications.map(notif => ({
+            ...notif,
+            _id: notif._id?.toString(),
+            userId: notif.userId?.toString(),
+            fromUserId: notif.fromUserId?.toString(),
+            fromUser: notif.fromUserId ? userMap.get(notif.fromUserId.toString()) : null,
+        }));
+    }
+    
+    return notifications.map(notif => ({
+        ...notif,
+        _id: notif._id?.toString(),
+        userId: notif.userId?.toString(),
+        fromUserId: notif.fromUserId?.toString(),
+    }));
+}
+
+async function markNotificationAsRead(notificationId, userId) {
+    const conn = await connect();
+    return conn.collection("notifications").updateOne(
+        { 
+            _id: ObjectId.createFromHexString(notificationId.toString()),
+            userId: ObjectId.createFromHexString(userId.toString())
+        },
+        { $set: { read: true, readAt: new Date() } }
+    );
+}
+
+async function markAllNotificationsAsRead(userId) {
+    const conn = await connect();
+    return conn.collection("notifications").updateMany(
+        { 
+            userId: ObjectId.createFromHexString(userId.toString()),
+            read: false
+        },
+        { $set: { read: true, readAt: new Date() } }
+    );
+}
+
+async function getUnreadNotificationCount(userId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(userId.toString());
+    return conn.collection("notifications").countDocuments({ userId: id, read: false });
+}
+
+// ======= Funções relacionadas a doações (donations) =======
+
+async function createDonationRequest(donation) {
+    const conn = await connect();
+    return conn.collection("donations").insertOne({
+        ...donation,
+        productId: ObjectId.createFromHexString(donation.productId.toString()),
+        fromUserId: ObjectId.createFromHexString(donation.fromUserId.toString()),
+        toUserId: ObjectId.createFromHexString(donation.toUserId.toString()),
+        status: 'pending',
+        createdAt: new Date(),
+    });
+}
+
+async function getDonationRequests(userId, type = 'received') {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(userId.toString());
+    
+    // Para 'received': busca doações onde o usuário é o dono (toUserId)
+    // Inclui pendentes, aceitas e confirmadas para mostrar histórico completo
+    // Para 'sent': busca doações onde o usuário solicitou (fromUserId)
+    // Inclui todas as doações (pendentes, aceitas, confirmadas)
+    const query = type === 'received' 
+        ? { 
+            toUserId: id, 
+            // Inclui todos os status para mostrar histórico completo das doações feitas
+            status: { $in: ['pending', 'accepted', 'confirmed', 'rejected'] }
+          }
+        : { 
+            fromUserId: id,
+            // Para sent, inclui todas as doações (pendentes, aceitas, confirmadas)
+            // para que o receptor possa ver e confirmar
+          };
+    
+    console.log(`[DEBUG DB] getDonationRequests - userId: ${userId}, type: ${type}, query:`, JSON.stringify(query));
+    
+    const donations = await conn.collection("donations")
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray();
+    
+    console.log(`[DEBUG DB] Encontradas ${donations.length} doações`);
+    
+    // Popula produtos e usuários
+    const productIds = [...new Set(donations.map(d => d.productId))];
+    const userIds = [...new Set([
+        ...donations.map(d => d.fromUserId),
+        ...donations.map(d => d.toUserId)
+    ])];
+    
+    const products = await conn.collection("products")
+        .find({ _id: { $in: productIds } })
+        .toArray();
+    
+    const users = await conn.collection("users")
+        .find({ _id: { $in: userIds } })
+        .project({ password: 0 })
+        .toArray();
+    
+    const productMap = new Map(products.map(p => [p._id.toString(), p]));
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+    
+    return donations.map(donation => ({
+        ...donation,
+        _id: donation._id?.toString(),
+        productId: donation.productId?.toString(),
+        fromUserId: donation.fromUserId?.toString(),
+        toUserId: donation.toUserId?.toString(),
+        product: productMap.get(donation.productId.toString()),
+        fromUser: userMap.get(donation.fromUserId.toString()),
+        toUser: userMap.get(donation.toUserId.toString()),
+    }));
+}
+
+async function getDonationRequestCount(productId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(productId.toString());
+    return conn.collection("donations").countDocuments({ 
+        productId: id, 
+        status: 'pending' 
+    });
+}
+
+async function getDonationById(donationId) {
+    const conn = await connect();
+    const donation = await conn.collection("donations").findOne({
+        _id: ObjectId.createFromHexString(donationId.toString())
+    });
+    
+    if (!donation) return null;
+    
+    // Popula produto e usuários
+    const product = await conn.collection("products").findOne({ _id: donation.productId });
+    const fromUser = await conn.collection("users").findOne({ _id: donation.fromUserId }, { projection: { password: 0 } });
+    const toUser = await conn.collection("users").findOne({ _id: donation.toUserId }, { projection: { password: 0 } });
+    
+    return {
+        ...donation,
+        _id: donation._id?.toString(),
+        productId: donation.productId?.toString(),
+        fromUserId: donation.fromUserId?.toString(),
+        toUserId: donation.toUserId?.toString(),
+        product,
+        fromUser,
+        toUser,
+    };
+}
+
+async function acceptDonation(donationId, userId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(donationId.toString());
+    
+    // Atualiza a doação aceita (status: accepted, não donated ainda)
+    const donation = await conn.collection("donations").findOne({ _id: id });
+    if (!donation) return null;
+    
+    await conn.collection("donations").updateOne(
+        { _id: id },
+        { $set: { status: 'accepted', acceptedAt: new Date() } }
+    );
+    
+    // Rejeita todas as outras solicitações pendentes para o mesmo produto
+    await conn.collection("donations").updateMany(
+        { 
+            productId: donation.productId,
+            _id: { $ne: id },
+            status: 'pending'
+        },
+        { $set: { status: 'rejected', rejectedAt: new Date() } }
+    );
+    
+    // Atualiza o produto para status "accepted" (aguardando confirmação de recebimento)
+    await conn.collection("products").updateOne(
+        { _id: donation.productId },
+        { 
+            $set: { 
+                status: 'donation_accepted',
+                donationAcceptedTo: donation.fromUserId,
+                donationAcceptedAt: new Date(),
+                updatedAt: new Date()
+            } 
+        }
+    );
+    
+    return donation;
+}
+
+async function confirmDonationReceived(donationId, userId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(donationId.toString());
+    
+    // Busca a doação
+    const donation = await conn.collection("donations").findOne({ _id: id });
+    if (!donation) return null;
+    
+    // Verifica se o usuário é quem recebeu a doação (fromUserId)
+    const donationFromUserId = donation.fromUserId?.toString ? donation.fromUserId.toString() : String(donation.fromUserId);
+    if (donationFromUserId !== userId) {
+        throw new Error('Apenas o receptor da doação pode confirmar o recebimento');
+    }
+    
+    // Atualiza status da doação para "confirmed"
+    await conn.collection("donations").updateOne(
+        { _id: id },
+        { $set: { status: 'confirmed', confirmedAt: new Date() } }
+    );
+    
+    // Busca informações do usuário que recebeu a doação
+    const donatedToUser = await conn.collection("users").findOne(
+        { _id: donation.fromUserId },
+        { projection: { password: 0 } }
+    );
+    
+    // Atualiza o produto para status "donated"
+    await conn.collection("products").updateOne(
+        { _id: donation.productId },
+        { 
+            $set: { 
+                status: 'donated',
+                donatedTo: donation.fromUserId,
+                donatedToUserName: donatedToUser?.name || 'Usuário',
+                donatedAt: new Date(),
+                updatedAt: new Date()
+            } 
+        }
+    );
+    
+    return donation;
+}
+
+// Funções de mensagens de doação
+async function createDonationMessage(messageData) {
+    const conn = await connect();
+    const result = await conn.collection("donationMessages").insertOne({
+        donationId: ObjectId.createFromHexString(messageData.donationId.toString()),
+        userId: ObjectId.createFromHexString(messageData.userId.toString()),
+        message: messageData.message,
+        createdAt: new Date(),
+    });
+    
+    // Busca a mensagem criada com informações do usuário
+    const message = await conn.collection("donationMessages").findOne({ _id: result.insertedId });
+    const user = await conn.collection("users").findOne({ _id: message.userId }, { projection: { password: 0 } });
+    
+    return {
+        ...message,
+        _id: message._id?.toString(),
+        donationId: message.donationId?.toString(),
+        userId: message.userId?.toString(),
+        user,
+    };
+}
+
+async function getDonationMessages(donationId) {
+    const conn = await connect();
+    const messages = await conn.collection("donationMessages")
+        .find({ donationId: ObjectId.createFromHexString(donationId.toString()) })
+        .sort({ createdAt: 1 })
+        .toArray();
+    
+    // Popula informações dos usuários
+    const userIds = [...new Set(messages.map(m => m.userId))];
+    const users = await conn.collection("users")
+        .find({ _id: { $in: userIds } })
+        .project({ password: 0 })
+        .toArray();
+    
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+    
+    return messages.map(msg => ({
+        ...msg,
+        _id: msg._id?.toString(),
+        donationId: msg.donationId?.toString(),
+        userId: msg.userId?.toString(),
+        user: userMap.get(msg.userId.toString()),
+    }));
+}
+
+// ======= Funções relacionadas a empréstimos (loans) =======
+
+async function createLoanRequest(loan) {
+    const conn = await connect();
+    return conn.collection("loans").insertOne({
+        ...loan,
+        requesterId: ObjectId.createFromHexString(loan.requesterId.toString()),
+        lenderId: loan.lenderId ? ObjectId.createFromHexString(loan.lenderId.toString()) : null,
+        productId: loan.productId ? ObjectId.createFromHexString(loan.productId.toString()) : null,
+        status: 'pending',
+        requesterConfirmed: false,
+        lenderConfirmed: false,
+        createdAt: new Date(),
+    });
+}
+
+async function getLoanRequests(userId, type = 'received') {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(userId.toString());
+    
+    // Para 'received': empréstimos onde o usuário é o emprestador (lenderId = userId) - FEZ/EMPRESTOU
+    // Para 'sent': empréstimos onde o usuário é o solicitante (requesterId = userId) - RECEBEU
+    // Para o feed: todos os pedidos pendentes sem lenderId
+    let query;
+    if (type === 'sent') {
+        // Empréstimos que o usuário solicitou (ele vai receber)
+        query = { requesterId: id };
+    } else if (type === 'all' || type === 'feed') {
+        // Para o feed, busca todos os pedidos pendentes sem lenderId
+        query = { status: 'pending', lenderId: null };
+    } else {
+        // 'received' - empréstimos onde o usuário é o emprestador (ele emprestou)
+        query = { lenderId: id };
+    }
+    
+    const loans = await conn.collection("loans")
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray();
+    
+    // Popula produtos e usuários
+    const productIds = loans.map(l => l.productId).filter(id => id);
+    const userIds = [...new Set([
+        ...loans.map(l => l.requesterId),
+        ...loans.map(l => l.lenderId).filter(id => id)
+    ])];
+    
+    const products = productIds.length > 0 
+        ? await conn.collection("products")
+            .find({ _id: { $in: productIds } })
+            .toArray()
+        : [];
+    
+    const users = await conn.collection("users")
+        .find({ _id: { $in: userIds } })
+        .project({ password: 0 })
+        .toArray();
+    
+    const productMap = new Map(products.map(p => [p._id.toString(), p]));
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+    
+    return loans.map(loan => ({
+        ...loan,
+        _id: loan._id?.toString(),
+        requesterId: loan.requesterId?.toString(),
+        lenderId: loan.lenderId?.toString(),
+        productId: loan.productId?.toString(),
+        product: loan.productId ? productMap.get(loan.productId.toString()) : null,
+        requester: userMap.get(loan.requesterId.toString()),
+        lender: loan.lenderId ? userMap.get(loan.lenderId.toString()) : null,
+    }));
+}
+
+async function createLoanOffer(loanId, lenderId, productId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(loanId.toString());
+    
+    return conn.collection("loans").updateOne(
+        { _id: id },
+        { 
+            $set: { 
+                lenderId: ObjectId.createFromHexString(lenderId.toString()),
+                productId: ObjectId.createFromHexString(productId.toString()),
+                status: 'offered',
+                updatedAt: new Date()
+            } 
+        }
+    );
+}
+
+async function updateLoanStatus(loanId, status) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(loanId.toString());
+    
+    return conn.collection("loans").updateOne(
+        { _id: id },
+        { $set: { status, updatedAt: new Date() } }
+    );
+}
+
+async function getLoanById(loanId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(loanId.toString());
+    
+    const loan = await conn.collection("loans").findOne({ _id: id });
+    if (!loan) return null;
+    
+    // Popula produto e usuários
+    const product = loan.productId 
+        ? await conn.collection("products").findOne({ _id: loan.productId })
+        : null;
+    
+    const requester = await conn.collection("users").findOne(
+        { _id: loan.requesterId },
+        { projection: { password: 0 } }
+    );
+    
+    const lender = loan.lenderId 
+        ? await conn.collection("users").findOne(
+            { _id: loan.lenderId },
+            { projection: { password: 0 } }
+          )
+        : null;
+    
+    return {
+        ...loan,
+        _id: loan._id?.toString(),
+        requesterId: loan.requesterId?.toString(),
+        lenderId: loan.lenderId?.toString(),
+        productId: loan.productId?.toString(),
+        product,
+        requester,
+        lender,
+    };
+}
+
+async function cancelLoanRequest(loanId, userId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(loanId.toString());
+    
+    const loan = await conn.collection("loans").findOne({ _id: id });
+    if (!loan) return null;
+    
+    // Verifica se o usuário é o solicitante
+    const loanRequesterId = loan.requesterId?.toString ? loan.requesterId.toString() : String(loan.requesterId);
+    if (loanRequesterId !== userId) {
+        throw new Error('Apenas o solicitante pode cancelar o pedido');
+    }
+    
+    // Só pode cancelar se ainda estiver pendente ou oferecido
+    if (loan.status !== 'pending' && loan.status !== 'offered') {
+        throw new Error('Não é possível cancelar um empréstimo que já foi aceito');
+    }
+    
+    await conn.collection("loans").updateOne(
+        { _id: id },
+        { $set: { status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() } }
+    );
+    
+    return loan;
+}
+
+async function acceptLoan(loanId, userId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(loanId.toString());
+    
+    const loan = await conn.collection("loans").findOne({ _id: id });
+    if (!loan) return null;
+    
+    // Verifica se o usuário é o solicitante
+    const loanRequesterId = loan.requesterId?.toString ? loan.requesterId.toString() : String(loan.requesterId);
+    if (loanRequesterId !== userId) {
+        throw new Error('Apenas o solicitante pode aceitar a oferta');
+    }
+    
+    // Verifica se há uma oferta (lenderId e productId)
+    if (!loan.lenderId || !loan.productId) {
+        throw new Error('Não há oferta para aceitar');
+    }
+    
+    // Atualiza status para accepted
+    await conn.collection("loans").updateOne(
+        { _id: id },
+        { $set: { status: 'accepted', acceptedAt: new Date(), updatedAt: new Date() } }
+    );
+    
+    // Atualiza o produto para status "loan_accepted"
+    await conn.collection("products").updateOne(
+        { _id: loan.productId },
+        { 
+            $set: { 
+                status: 'loan_accepted',
+                loanAcceptedTo: loan.requesterId,
+                loanAcceptedAt: new Date(),
+                updatedAt: new Date()
+            } 
+        }
+    );
+    
+    return loan;
+}
+
+async function confirmLoanReceived(loanId, userId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(loanId.toString());
+    
+    const loan = await conn.collection("loans").findOne({ _id: id });
+    if (!loan) return null;
+    
+    // Verifica se o usuário é o solicitante (quem recebeu o empréstimo)
+    const loanRequesterId = loan.requesterId?.toString ? loan.requesterId.toString() : String(loan.requesterId);
+    if (loanRequesterId !== userId) {
+        throw new Error('Apenas quem recebeu o empréstimo pode confirmar o recebimento');
+    }
+    
+    // Verifica se o empréstimo está aceito
+    if (loan.status !== 'accepted') {
+        throw new Error('O empréstimo precisa estar aceito para confirmar o recebimento');
+    }
+    
+    // Atualiza status para confirmed
+    await conn.collection("loans").updateOne(
+        { _id: id },
+        { $set: { status: 'confirmed', confirmedAt: new Date(), updatedAt: new Date() } }
+    );
+    
+    // Busca informações do usuário que recebeu o empréstimo
+    const loanedToUser = await conn.collection("users").findOne(
+        { _id: loan.requesterId },
+        { projection: { password: 0 } }
+    );
+    
+    // Atualiza o produto para status "loaned"
+    if (loan.productId) {
+        await conn.collection("products").updateOne(
+            { _id: loan.productId },
+            { 
+                $set: { 
+                    status: 'loaned',
+                    loanedTo: loan.requesterId,
+                    loanedToUserName: loanedToUser?.name || 'Usuário',
+                    loanedAt: new Date(),
+                    updatedAt: new Date()
+                } 
+            }
+        );
+    }
+    
+    return loan;
+}
+
+async function confirmLoan(loanId, userId, userType) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(loanId.toString());
+    
+    const loan = await conn.collection("loans").findOne({ _id: id });
+    if (!loan) return null;
+    
+    const update = {};
+    if (userType === 'requester') {
+        update.requesterConfirmed = true;
+    } else if (userType === 'lender') {
+        update.lenderConfirmed = true;
+    }
+    
+    // Se ambos confirmaram, marca como confirmado
+    const requesterConfirmed = userType === 'requester' ? true : loan.requesterConfirmed;
+    const lenderConfirmed = userType === 'lender' ? true : loan.lenderConfirmed;
+    
+    if (requesterConfirmed && lenderConfirmed) {
+        update.status = 'confirmed';
+        update.confirmedAt = new Date();
+        
+        // Atualiza o produto se houver
+        if (loan.productId) {
+            // Busca informações do usuário que recebeu o empréstimo
+            const loanedToUser = await conn.collection("users").findOne(
+                { _id: loan.requesterId },
+                { projection: { password: 0 } }
+            );
+            
+            await conn.collection("products").updateOne(
+                { _id: loan.productId },
+                { 
+                    $set: { 
+                        status: 'loaned',
+                        loanedTo: loan.requesterId,
+                        loanedToUserName: loanedToUser?.name || 'Usuário',
+                        loanedAt: new Date(),
+                        updatedAt: new Date()
+                    } 
+                }
+            );
+        }
+    }
+    
+    await conn.collection("loans").updateOne(
+        { _id: id },
+        { $set: { ...update, updatedAt: new Date() } }
+    );
+    
+    return loan;
+}
+
+// Funções de mensagens de empréstimo
+async function createLoanMessage(messageData) {
+    const conn = await connect();
+    const result = await conn.collection("loanMessages").insertOne({
+        loanId: ObjectId.createFromHexString(messageData.loanId.toString()),
+        userId: ObjectId.createFromHexString(messageData.userId.toString()),
+        message: messageData.message,
+        createdAt: new Date(),
+    });
+    
+    // Busca a mensagem criada com informações do usuário
+    const message = await conn.collection("loanMessages").findOne({ _id: result.insertedId });
+    const user = await conn.collection("users").findOne({ _id: message.userId }, { projection: { password: 0 } });
+    
+    return {
+        ...message,
+        _id: message._id?.toString(),
+        loanId: message.loanId?.toString(),
+        userId: message.userId?.toString(),
+        user,
+    };
+}
+
+async function getLoanMessages(loanId) {
+    const conn = await connect();
+    const messages = await conn.collection("loanMessages")
+        .find({ loanId: ObjectId.createFromHexString(loanId.toString()) })
+        .sort({ createdAt: 1 })
+        .toArray();
+    
+    // Popula informações dos usuários
+    const userIds = [...new Set(messages.map(m => m.userId))];
+    const users = userIds.length > 0
+        ? await conn.collection("users")
+            .find({ _id: { $in: userIds } })
+            .project({ password: 0 })
+            .toArray()
+        : [];
+    
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+    
+    return messages.map(msg => ({
+        ...msg,
+        _id: msg._id?.toString(),
+        loanId: msg.loanId?.toString(),
+        userId: msg.userId?.toString(),
+        user: userMap.get(msg.userId.toString()),
+    }));
+}
+
+// Funções de conversas diretas entre usuários
+async function createConversation(user1Id, user2Id) {
+    const conn = await connect();
+    // Garante que user1Id < user2Id para evitar duplicatas
+    const ids = [user1Id.toString(), user2Id.toString()].sort();
+    
+    // Verifica se já existe
+    const existing = await conn.collection("conversations").findOne({
+        user1Id: ObjectId.createFromHexString(ids[0]),
+        user2Id: ObjectId.createFromHexString(ids[1])
+    });
+    
+    if (existing) {
+        return {
+            ...existing,
+            _id: existing._id?.toString(),
+            user1Id: existing.user1Id?.toString(),
+            user2Id: existing.user2Id?.toString(),
+        };
+    }
+    
+    const result = await conn.collection("conversations").insertOne({
+        user1Id: ObjectId.createFromHexString(ids[0]),
+        user2Id: ObjectId.createFromHexString(ids[1]),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    });
+    
+    const conversation = await conn.collection("conversations").findOne({ _id: result.insertedId });
+    
+    // Popula usuários
+    const user1 = await conn.collection("users").findOne({ _id: conversation.user1Id }, { projection: { password: 0 } });
+    const user2 = await conn.collection("users").findOne({ _id: conversation.user2Id }, { projection: { password: 0 } });
+    
+    return {
+        ...conversation,
+        _id: conversation._id?.toString(),
+        user1Id: conversation.user1Id?.toString(),
+        user2Id: conversation.user2Id?.toString(),
+        user1,
+        user2,
+    };
+}
+
+async function getConversation(user1Id, user2Id) {
+    const conn = await connect();
+    const ids = [user1Id.toString(), user2Id.toString()].sort();
+    
+    const conversation = await conn.collection("conversations").findOne({
+        user1Id: ObjectId.createFromHexString(ids[0]),
+        user2Id: ObjectId.createFromHexString(ids[1])
+    });
+    
+    if (!conversation) return null;
+    
+    // Popula usuários
+    const user1 = await conn.collection("users").findOne({ _id: conversation.user1Id }, { projection: { password: 0 } });
+    const user2 = await conn.collection("users").findOne({ _id: conversation.user2Id }, { projection: { password: 0 } });
+    
+    return {
+        ...conversation,
+        _id: conversation._id?.toString(),
+        user1Id: conversation.user1Id?.toString(),
+        user2Id: conversation.user2Id?.toString(),
+        user1,
+        user2,
+    };
+}
+
+async function getConversationById(conversationId) {
+    const conn = await connect();
+    const conversation = await conn.collection("conversations").findOne({
+        _id: ObjectId.createFromHexString(conversationId.toString())
+    });
+    
+    if (!conversation) return null;
+    
+    // Popula usuários
+    const user1 = await conn.collection("users").findOne({ _id: conversation.user1Id }, { projection: { password: 0 } });
+    const user2 = await conn.collection("users").findOne({ _id: conversation.user2Id }, { projection: { password: 0 } });
+    
+    return {
+        ...conversation,
+        _id: conversation._id?.toString(),
+        user1Id: conversation.user1Id?.toString(),
+        user2Id: conversation.user2Id?.toString(),
+        user1,
+        user2,
+    };
+}
+
+async function getUserConversations(userId) {
+    const conn = await connect();
+    const id = ObjectId.createFromHexString(userId.toString());
+    
+    const conversations = await conn.collection("conversations")
+        .find({
+            $or: [
+                { user1Id: id },
+                { user2Id: id }
+            ]
+        })
+        .sort({ updatedAt: -1 })
+        .toArray();
+    
+    // Popula usuários e última mensagem
+    const userIds = [...new Set([
+        ...conversations.map(c => c.user1Id),
+        ...conversations.map(c => c.user2Id)
+    ])];
+    
+    const users = await conn.collection("users")
+        .find({ _id: { $in: userIds } })
+        .project({ password: 0 })
+        .toArray();
+    
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+    
+    // Busca última mensagem de cada conversa
+    const conversationIds = conversations.map(c => c._id);
+    const lastMessages = await conn.collection("conversationMessages")
+        .aggregate([
+            { $match: { conversationId: { $in: conversationIds } } },
+            { $sort: { createdAt: -1 } },
+            { $group: {
+                _id: "$conversationId",
+                lastMessage: { $first: "$$ROOT" }
+            }}
+        ])
+        .toArray();
+    
+    const lastMessageMap = new Map(lastMessages.map(m => [m._id.toString(), m.lastMessage]));
+    
+    return conversations.map(conv => {
+        const otherUserId = conv.user1Id.toString() === userId 
+            ? conv.user2Id.toString() 
+            : conv.user1Id.toString();
+        const otherUser = userMap.get(otherUserId);
+        const lastMessage = lastMessageMap.get(conv._id.toString());
+        
+        return {
+            ...conv,
+            _id: conv._id?.toString(),
+            user1Id: conv.user1Id?.toString(),
+            user2Id: conv.user2Id?.toString(),
+            user1: userMap.get(conv.user1Id.toString()),
+            user2: userMap.get(conv.user2Id.toString()),
+            otherUser,
+            lastMessage: lastMessage ? {
+                ...lastMessage,
+                _id: lastMessage._id?.toString(),
+                conversationId: lastMessage.conversationId?.toString(),
+                userId: lastMessage.userId?.toString(),
+                user: userMap.get(lastMessage.userId.toString()),
+            } : null,
+        };
+    });
+}
+
+async function createConversationMessage(messageData) {
+    const conn = await connect();
+    const result = await conn.collection("conversationMessages").insertOne({
+        conversationId: ObjectId.createFromHexString(messageData.conversationId.toString()),
+        userId: ObjectId.createFromHexString(messageData.userId.toString()),
+        message: messageData.message,
+        createdAt: new Date(),
+    });
+    
+    // Atualiza updatedAt da conversa
+    await conn.collection("conversations").updateOne(
+        { _id: ObjectId.createFromHexString(messageData.conversationId.toString()) },
+        { $set: { updatedAt: new Date() } }
+    );
+    
+    // Busca a mensagem criada com informações do usuário
+    const message = await conn.collection("conversationMessages").findOne({ _id: result.insertedId });
+    const user = await conn.collection("users").findOne({ _id: message.userId }, { projection: { password: 0 } });
+    
+    return {
+        ...message,
+        _id: message._id?.toString(),
+        conversationId: message.conversationId?.toString(),
+        userId: message.userId?.toString(),
+        user,
+    };
+}
+
+async function getConversationMessages(conversationId) {
+    const conn = await connect();
+    const messages = await conn.collection("conversationMessages")
+        .find({ conversationId: ObjectId.createFromHexString(conversationId.toString()) })
+        .sort({ createdAt: 1 })
+        .toArray();
+    
+    // Popula informações dos usuários
+    const userIds = [...new Set(messages.map(m => m.userId))];
+    const users = userIds.length > 0
+        ? await conn.collection("users")
+            .find({ _id: { $in: userIds } })
+            .project({ password: 0 })
+            .toArray()
+        : [];
+    
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+    
+    return messages.map(msg => ({
+        ...msg,
+        _id: msg._id?.toString(),
+        conversationId: msg.conversationId?.toString(),
+        userId: msg.userId?.toString(),
+        user: userMap.get(msg.userId.toString()),
+    }));
+}
+
 module.exports = {
     PAGE_SIZE,
     connect,
@@ -778,4 +1770,37 @@ module.exports = {
     getTradeMessages,
     // Busca
     searchPublicUsers,
+    // Notificações
+    createNotification,
+    getNotifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    getUnreadNotificationCount,
+    // Doações
+    createDonationRequest,
+    getDonationRequests,
+    getDonationRequestCount,
+    getDonationById,
+    acceptDonation,
+    confirmDonationReceived,
+    createDonationMessage,
+    getDonationMessages,
+    // Empréstimos
+    createLoanRequest,
+    getLoanRequests,
+    getLoanById,
+    createLoanOffer,
+    acceptLoan,
+    confirmLoanReceived,
+    cancelLoanRequest,
+    confirmLoan,
+    createLoanMessage,
+    getLoanMessages,
+    // Conversas
+    createConversation,
+    getConversation,
+    getConversationById,
+    getUserConversations,
+    createConversationMessage,
+    getConversationMessages,
 };

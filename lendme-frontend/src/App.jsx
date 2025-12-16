@@ -18,6 +18,13 @@ import SelectProductForTrade from './pages/SelectProductForTrade'
 import TradeDetails from './pages/TradeDetails'
 import PrivacySettings from './pages/PrivacySettings'
 import ChangePassword from './pages/ChangePassword'
+import CreateLoanRequest from './pages/CreateLoanRequest'
+import OfferLoan from './pages/OfferLoan'
+import DonationDetails from './pages/DonationDetails'
+import LoanDetails from './pages/LoanDetails'
+import UserProfile from './pages/UserProfile'
+import Conversation from './pages/Conversation'
+import Donations from './pages/Donations'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 
@@ -111,6 +118,54 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/create-loan"
+              element={
+                <ProtectedRoute>
+                  <CreateLoanRequest />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/loan/:loanId/offer"
+              element={
+                <ProtectedRoute>
+                  <OfferLoan />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/donations/:donationId"
+              element={
+                <ProtectedRoute>
+                  <DonationDetails />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/loans/:loanId"
+              element={
+                <ProtectedRoute>
+                  <LoanDetails />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/user/:userId"
+              element={
+                <ProtectedRoute>
+                  <UserProfile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/conversations/:conversationId"
+              element={
+                <ProtectedRoute>
+                  <Conversation />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Rotas protegidas */}
             <Route
@@ -142,6 +197,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Trades />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/donations"
+              element={
+                <ProtectedRoute>
+                  <Donations />
                 </ProtectedRoute>
               }
             />

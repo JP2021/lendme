@@ -11,6 +11,7 @@ const AddProduct = () => {
     description: '',
     category: '',
     condition: 'excellent',
+    type: 'trade', // 'trade', 'donation' ou 'loan'
     images: []
   })
   const [loading, setLoading] = useState(false)
@@ -211,6 +212,66 @@ const AddProduct = () => {
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* Tipo de Produto */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Tipo
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            <label
+              className={`flex items-center space-x-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                formData.type === 'trade'
+                  ? 'bg-blue-500/20 border-blue-500'
+                  : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+              }`}
+            >
+              <input
+                type="radio"
+                name="type"
+                value="trade"
+                checked={formData.type === 'trade'}
+                onChange={handleChange}
+                className="hidden"
+              />
+              <span className="text-sm text-gray-300">Troca</span>
+            </label>
+            <label
+              className={`flex items-center space-x-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                formData.type === 'donation'
+                  ? 'bg-green-500/20 border-green-500'
+                  : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+              }`}
+            >
+              <input
+                type="radio"
+                name="type"
+                value="donation"
+                checked={formData.type === 'donation'}
+                onChange={handleChange}
+                className="hidden"
+              />
+              <span className="text-sm text-gray-300">Doação</span>
+            </label>
+            <label
+              className={`flex items-center space-x-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                formData.type === 'loan'
+                  ? 'bg-purple-500/20 border-purple-500'
+                  : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+              }`}
+            >
+              <input
+                type="radio"
+                name="type"
+                value="loan"
+                checked={formData.type === 'loan'}
+                onChange={handleChange}
+                className="hidden"
+              />
+              <span className="text-sm text-gray-300">Empréstimo</span>
+            </label>
           </div>
         </div>
 

@@ -8,6 +8,7 @@ export const productService = {
     formData.append('description', productData.description || '')
     formData.append('category', productData.category || 'Outros')
     formData.append('condition', productData.condition || 'good')
+    formData.append('type', productData.type || 'trade')
     
     if (productData.images && productData.images.length > 0) {
       productData.images.forEach(image => {

@@ -89,6 +89,8 @@ router.get('/', function(req, res, next) {
             name: user.name,
             email: user.email,
             profile: user.profile,
+            bio: user.bio || '',
+            profilePic: user.profilePic || null,
           };
 
           return res.json({ user: safeUser });
@@ -109,6 +111,7 @@ router.get('/', function(req, res, next) {
         email: user.email,
         profile: user.profile,
         bio: user.bio || '',
+        profilePic: user.profilePic || null,
         isPublic: user.isPublic !== false, // Por padrão é público
         showEmail: user.showEmail || false,
         allowFriendRequests: user.allowFriendRequests !== false,
