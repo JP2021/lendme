@@ -98,6 +98,17 @@ router.get('/', function(req, res, next) {
       })(req, res, next);
     });
 
+    // Logout JSON em /api/logout
+    router.post('/api/logout', (req, res, next) => {
+      req.logOut((err) => {
+        if (err) {
+          return next(err);
+        }
+        // Sempre retorna JSON para o frontend React
+        return res.json({ success: true, message: 'Logout realizado com sucesso' });
+      });
+    });
+
     // Usuário logado atual
     router.get('/api/auth/me', (req, res) => {
       if (!req.isAuthenticated || !req.isAuthenticated()) {

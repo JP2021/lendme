@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Package, Check, Handshake } from 'lucide-react'
 import BottomNavigation from '../components/BottomNavigation'
+import { useToast } from '../contexts/ToastContext'
 import { productService } from '../services/productService'
 import { loanService } from '../services/loanService'
 import { useAuth } from '../contexts/AuthContext'
@@ -11,6 +12,7 @@ const OfferLoan = () => {
   const { loanId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const toast = useToast()
   const [loanRequest, setLoanRequest] = useState(null)
   const [myProducts, setMyProducts] = useState([])
   const [selectedProduct, setSelectedProduct] = useState(null)
@@ -78,7 +80,7 @@ const OfferLoan = () => {
 
     try {
       await loanService.offerLoan(loanId, selectedProduct)
-      alert('Oferta de empréstimo enviada com sucesso!')
+      toast.success('Oferta de empréstimo enviada com sucesso!')
       navigate('/')
     } catch (err) {
       setError(err.response?.data?.message || 'Erro ao oferecer empréstimo')

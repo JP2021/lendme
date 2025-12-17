@@ -174,16 +174,130 @@ router.get('/products', ensureApiAuthenticated, async (req, res) => {
       loan: loan,
     }));
 
-    // Combina produtos e pedidos de empréstimo, ordenando por data
-    const feedItems = [...visibleProducts, ...loanFeedItems].sort((a, b) => {
-      const dateA = new Date(a.createdAt || 0);
-      const dateB = new Date(b.createdAt || 0);
-      return dateB - dateA;
+    // Combina produtos e pedidos de empréstimo
+    const allFeedItems = [...visibleProducts, ...loanFeedItems];
+    
+    // Define o limite de tempo para considerar um post como "novo" (24 horas)
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    console.log(`[Feed] Data atual: ${now.toISOString()}, 24h atrás: ${oneDayAgo.toISOString()}`);
+    
+    // Separa posts novos (últimas 24h) dos mais antigos
+    const newPosts = [];
+    const oldPosts = [];
+    
+    allFeedItems.forEach(item => {
+      const itemDate = new Date(item.createdAt || 0);
+      if (itemDate >= oneDayAgo) {
+        newPosts.push(item);
+      } else {
+        oldPosts.push(item);
+      }
     });
+    
+    console.log(`[Feed] Separação: ${newPosts.length} novos, ${oldPosts.length} antigos`);
+    
+    // Função auxiliar para randomizar array usando Fisher-Yates shuffle
+    const shuffleArray = (arr) => {
+      if (arr.length <= 1) return arr;
+      const shuffled = [...arr]; // Cria cópia para não modificar o original
+      
+      // Primeiro shuffle - Fisher-Yates (de trás para frente)
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      
+      // Segundo shuffle para garantir melhor distribuição
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      
+      // Terceiro shuffle usando uma abordagem diferente (de frente para trás)
+      for (let i = 0; i < shuffled.length - 1; i++) {
+        const j = Math.floor(Math.random() * (shuffled.length - i)) + i;
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      
+      return shuffled;
+    };
+    
+    let feedItems = [];
+    
+    // Se há posts novos E antigos: novos primeiro (ordenados por data), depois antigos (randomizados)
+    if (newPosts.length > 0 && oldPosts.length > 0) {
+      // Ordena posts novos por data (mais recente primeiro)
+      newPosts.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0);
+        const dateB = new Date(b.createdAt || 0);
+        return dateB - dateA;
+      });
+      
+      // Randomiza posts antigos
+      const shuffledOldPosts = shuffleArray(oldPosts);
+      console.log(`[Feed] Randomizando ${oldPosts.length} posts antigos...`);
+      
+      feedItems = [...newPosts, ...shuffledOldPosts];
+    }
+    // Se TODOS são novos: randomiza todos (mas mantém prioridade para os mais recentes)
+    else if (newPosts.length > 0 && oldPosts.length === 0) {
+      console.log(`[Feed] Todos os posts são novos (${newPosts.length}). Randomizando todos...`);
+      
+      // Ordena primeiro por data para dar prioridade aos mais recentes
+      newPosts.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0);
+        const dateB = new Date(b.createdAt || 0);
+        return dateB - dateA;
+      });
+      
+      // Se há mais de 1 post, randomiza mantendo uma tendência de prioridade para os mais recentes
+      if (newPosts.length > 1) {
+        // Pega os 3 mais recentes e randomiza o resto
+        const topRecent = newPosts.slice(0, Math.min(3, newPosts.length));
+        const rest = newPosts.slice(Math.min(3, newPosts.length));
+        
+        // Randomiza o resto
+        const shuffledRest = shuffleArray(rest);
+        
+        // Combina: top recentes primeiro, depois o resto randomizado
+        feedItems = [...topRecent, ...shuffledRest];
+        
+        // Randomiza a ordem final também para garantir variação
+        feedItems = shuffleArray(feedItems);
+      } else {
+        feedItems = newPosts;
+      }
+    }
+    // Se TODOS são antigos: randomiza todos
+    else if (oldPosts.length > 0 && newPosts.length === 0) {
+      console.log(`[Feed] Todos os posts são antigos (${oldPosts.length}). Randomizando todos...`);
+      feedItems = shuffleArray(oldPosts);
+    }
+    // Caso vazio
+    else {
+      feedItems = [];
+    }
+    
+    console.log(`[Feed] Ordem final: ${newPosts.length} novos + ${oldPosts.length} antigos (randomizados)`);
+    if (oldPosts.length > 0) {
+      const firstThreeIds = oldPosts.slice(0, 3).map(p => p._id || p.name || 'sem-id');
+      console.log(`[Feed] Primeiros 3 posts antigos (após randomização):`, firstThreeIds);
+    }
 
     console.log(`[Feed] Produtos visíveis: ${visibleProducts.length} de ${allProducts.length} para usuário ${userIdStr}`);
     console.log(`[Feed] Pedidos de empréstimo: ${loanFeedItems.length}`);
     console.log(`[Feed] Amigos: ${friendIds.length}`);
+    console.log(`[Feed] Posts novos (últimas 24h): ${newPosts.length}, Posts antigos (randomizados): ${oldPosts.length}`);
+    
+    // Adiciona headers para evitar cache
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
     return res.json(feedItems);
   } catch (err) {
     console.error('Erro ao listar produtos:', err);
@@ -309,6 +423,65 @@ router.get('/products/:productId', ensureApiAuthenticated, async (req, res) => {
   } catch (err) {
     console.error('Erro ao buscar produto:', err);
     return res.status(500).json({ message: 'Erro ao buscar produto' });
+  }
+});
+
+// Curtir / descurtir produto
+router.post('/products/:productId/like', ensureApiAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const { productId } = req.params;
+
+    const product = await db.toggleProductLike(productId, userId);
+    if (!product) {
+      return res.status(404).json({ message: 'Produto não encontrado' });
+    }
+
+    return res.json({
+      message: product.liked ? 'Produto curtido' : 'Curtida removida',
+      liked: product.liked,
+      likesCount: product.likesCount || (product.likes ? product.likes.length : 0),
+      product,
+    });
+  } catch (err) {
+    console.error('Erro ao curtir produto:', err);
+    return res.status(500).json({ message: 'Erro ao curtir produto' });
+  }
+});
+
+// Listar comentários do produto
+router.get('/products/:productId/comments', ensureApiAuthenticated, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const comments = await db.getProductComments(productId);
+    return res.json(comments);
+  } catch (err) {
+    console.error('Erro ao listar comentários do produto:', err);
+    return res.status(500).json({ message: 'Erro ao listar comentários do produto' });
+  }
+});
+
+// Criar comentário no produto
+router.post('/products/:productId/comments', ensureApiAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const { productId } = req.params;
+    const { text } = req.body;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: 'Comentário não pode ser vazio' });
+    }
+
+    const comment = await db.createProductComment({
+      productId,
+      userId,
+      text: text.trim(),
+    });
+
+    return res.status(201).json({ message: 'Comentário criado', comment });
+  } catch (err) {
+    console.error('Erro ao criar comentário do produto:', err);
+    return res.status(500).json({ message: 'Erro ao criar comentário do produto' });
   }
 });
 

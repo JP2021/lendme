@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Heart, MessageCircle, ArrowLeftRight, MoreVertical, Gift, Handshake } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { tradeService } from '../services/tradeService'
 import { productService } from '../services/productService'
 import { donationService } from '../services/donationService'
@@ -11,14 +12,35 @@ import { getImageUrl } from '../utils/imageUtils'
 const ProductCard = ({ product, user }) => {
   const { user: currentUser } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
   const [loading, setLoading] = useState(false)
-
-  const getImageUrl = (imagePath) => {
-    if (!imagePath) return null
-    if (imagePath.startsWith('http')) return imagePath
-    // Usa a URL do backend para servir as imagens
-    return `http://localhost:3001${imagePath}`
-  }
+  
+  // Usa user passado como prop ou product.user como fallback
+  const displayUser = user || product?.user
+  const [likeLoading, setLikeLoading] = useState(false)
+  const initialLikes = useMemo(() => product?.likes || [], [product])
+  const initialLikesCount = useMemo(
+    () => (Array.isArray(initialLikes) ? initialLikes.length : product?.likesCount || 0),
+    [initialLikes, product]
+  )
+  const initialLiked = useMemo(() => {
+    if (!currentUser) return false
+    const currentId = currentUser._id?.toString ? currentUser._id.toString() : currentUser._id
+    return Array.isArray(initialLikes)
+      ? initialLikes.some((id) => {
+          const idStr = id?.toString ? id.toString() : id
+          return idStr === currentId
+        })
+      : false
+  }, [currentUser, initialLikes])
+  const [liked, setLiked] = useState(initialLiked)
+  const [likesCount, setLikesCount] = useState(initialLikesCount)
+  const [showComments, setShowComments] = useState(false)
+  const [comments, setComments] = useState([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [newComment, setNewComment] = useState('')
+  const [sendingComment, setSendingComment] = useState(false)
+  const [commentsCount, setCommentsCount] = useState(product?.commentsCount || 0)
 
   const handleTrade = async () => {
     if (!currentUser) {
@@ -30,7 +52,7 @@ const ProductCard = ({ product, user }) => {
     const currentUserId = currentUser._id?.toString ? currentUser._id.toString() : currentUser._id
 
     if (productUserId === currentUserId) {
-      alert('Você não pode trocar seu próprio produto')
+      toast.warning('Você não pode trocar seu próprio produto')
       return
     }
 
@@ -47,10 +69,10 @@ const ProductCard = ({ product, user }) => {
     setLoading(true)
     try {
       await donationService.createDonationRequest(product._id)
-      alert('Solicitação de doação enviada!')
+      toast.success('Solicitação de doação enviada!')
       window.location.reload()
     } catch (err) {
-      alert(err.response?.data?.message || 'Erro ao solicitar doação')
+      toast.error(err.response?.data?.message || 'Erro ao solicitar doação')
     } finally {
       setLoading(false)
     }
@@ -70,13 +92,93 @@ const ProductCard = ({ product, user }) => {
         navigate(`/loan/${loanId}/offer`)
       } else {
         console.error('ID do empréstimo não encontrado:', product)
-        alert('Erro: ID do empréstimo não encontrado')
+        toast.error('Erro: ID do empréstimo não encontrado')
       }
     }
   }
 
   // Verifica se é um pedido de empréstimo
   const isLoanRequest = product.type === 'loan_request'
+
+  const handleToggleLike = async () => {
+    if (!currentUser) {
+      navigate('/login')
+      return
+    }
+
+    if (likeLoading) return
+
+    setLikeLoading(true)
+    try {
+      const result = await productService.toggleLike(product._id)
+      const newLiked = result?.liked ?? !liked
+      const newCount =
+        typeof result?.likesCount === 'number'
+          ? result.likesCount
+          : likesCount + (newLiked ? 1 : -1)
+
+      setLiked(newLiked)
+      setLikesCount(Math.max(0, newCount))
+    } catch (err) {
+      console.error('Erro ao curtir produto:', err)
+      toast.error(err.response?.data?.message || 'Erro ao curtir produto')
+    } finally {
+      setLikeLoading(false)
+    }
+  }
+
+  const loadComments = async () => {
+    if (!currentUser) {
+      navigate('/login')
+      return
+    }
+
+    setCommentsLoading(true)
+    try {
+      const data = await productService.getComments(product._id)
+      const list = Array.isArray(data) ? data : []
+      setComments(list)
+      setCommentsCount(list.length)
+    } catch (err) {
+      console.error('Erro ao carregar comentários:', err)
+      toast.error(err.response?.data?.message || 'Erro ao carregar comentários')
+    } finally {
+      setCommentsLoading(false)
+    }
+  }
+
+  const handleToggleComments = async () => {
+    const next = !showComments
+    setShowComments(next)
+    if (next && comments.length === 0) {
+      await loadComments()
+    }
+  }
+
+  const handleSendComment = async (e) => {
+    if (e) e.preventDefault()
+    if (!currentUser) {
+      navigate('/login')
+      return
+    }
+    if (!newComment.trim() || sendingComment) return
+
+    setSendingComment(true)
+    try {
+      const { comment } = await productService.addComment(product._id, newComment.trim())
+      setComments((prev) => {
+        const updated = [...prev, comment]
+        setCommentsCount(updated.length)
+        return updated
+      })
+      setNewComment('')
+    } catch (err) {
+      console.error('Erro ao enviar comentário:', err)
+      toast.error(err.response?.data?.message || 'Erro ao enviar comentário')
+    } finally {
+      setSendingComment(false)
+    }
+  }
 
   const formatDate = (date) => {
     if (!date) return 'Agora'
@@ -99,36 +201,38 @@ const ProductCard = ({ product, user }) => {
       {/* Header do Post */}
       <div className="flex items-center justify-between p-4">
         <Link 
-          to={`/user/${user?._id?.toString() || user?._id || product?.userId?.toString() || product?.userId || ''}`} 
+          to={`/user/${displayUser?._id?.toString() || displayUser?._id || product?.userId?.toString() || product?.userId || ''}`} 
           className="flex items-center space-x-3"
         >
-          {user?.profilePic ? (
-            <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-700">
+          {displayUser?.profilePic ? (
+            <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-700 relative flex-shrink-0 bg-slate-800">
               <img 
-                src={getImageUrl(user.profilePic)} 
-                alt={user?.name || 'Usuário'} 
+                src={getImageUrl(displayUser.profilePic)} 
+                alt={displayUser?.name || 'Usuário'} 
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   e.target.style.display = 'none'
                   const fallback = e.target.parentElement.querySelector('.avatar-fallback')
-                  if (fallback) fallback.style.display = 'flex'
+                  if (fallback) {
+                    fallback.style.display = 'flex'
+                  }
                 }}
               />
-              <div className="avatar-fallback hidden w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full items-center justify-center">
+              <div className="avatar-fallback hidden absolute inset-0 w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 rounded-full items-center justify-center">
                 <span className="text-white font-semibold text-sm">
-                  {user?.name?.charAt(0).toUpperCase() || 'U'}
+                  {displayUser?.name?.charAt(0).toUpperCase() || 'U'}
                 </span>
               </div>
             </div>
           ) : (
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-white font-semibold text-sm">
-                {user?.name?.charAt(0).toUpperCase() || 'U'}
+                {displayUser?.name?.charAt(0).toUpperCase() || 'U'}
               </span>
             </div>
           )}
           <div>
-            <p className="text-sm font-semibold text-gray-100">{user?.name || 'Usuário'}</p>
+            <p className="text-sm font-semibold text-gray-100">{displayUser?.name || 'Usuário'}</p>
             <p className="text-xs text-gray-400">{formatDate(product?.createdAt)}</p>
           </div>
         </Link>
@@ -182,11 +286,26 @@ const ProductCard = ({ product, user }) => {
       <div className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-4">
-            <button className="text-gray-300 hover:text-red-400 transition-colors">
+            <button
+              onClick={handleToggleLike}
+              disabled={likeLoading}
+              className={`flex items-center space-x-1 transition-colors ${
+                liked ? 'text-red-400' : 'text-gray-300 hover:text-red-400'
+              } disabled:opacity-60`}
+            >
               <Heart size={24} />
+              <span className="text-xs">{likesCount > 0 ? likesCount : ''}</span>
             </button>
-            <button className="text-gray-300 hover:text-blue-400 transition-colors">
+            <button
+              onClick={handleToggleComments}
+              className={`flex items-center space-x-1 transition-colors ${
+                showComments ? 'text-blue-400' : 'text-gray-300 hover:text-blue-400'
+              }`}
+            >
               <MessageCircle size={24} />
+              <span className="text-xs">
+                {commentsCount > 0 ? commentsCount : ''}
+              </span>
             </button>
           </div>
           {currentUser && (() => {
@@ -254,85 +373,164 @@ const ProductCard = ({ product, user }) => {
           })()}
         </div>
 
-            {/* Informações do Produto */}
-            <div className="mb-2">
-              <p className="text-sm font-semibold text-gray-100 mb-1">{product?.name || 'Produto'}</p>
-              {product?.description && (
-                <p className="text-sm text-gray-400 mb-2">{product.description}</p>
-              )}
-              <div className="flex items-center space-x-2 flex-wrap">
-                {product?.category && (
-                  <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs">
-                    {product.category}
-                  </span>
-                )}
-                {product?.status === 'traded' ? (
-                  <div className="flex flex-col space-y-1">
-                    <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded-full text-xs font-semibold">
-                      ✓ Trocado
-                    </span>
-                    <span className="px-2 py-1 bg-purple-500/10 text-purple-300 rounded-full text-xs">
-                      com {product.tradedWith || 'Usuário'} por {product.tradedFor || 'Produto'}
-                    </span>
-                  </div>
-                ) : product?.status === 'donated' ? (
-                  <div className="flex flex-col space-y-1">
-                    <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-semibold">
-                      ✓ Doado
-                    </span>
-                    <span className="px-2 py-1 bg-green-500/10 text-green-300 rounded-full text-xs">
-                      Doado para {product.donatedToUserName || 'um usuário'}
-                    </span>
-                  </div>
-                ) : product?.status === 'donation_accepted' ? (
-                  <div className="flex flex-col space-y-1">
-                    <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs font-semibold">
-                      Doação Aceita
-                    </span>
-                    <span className="px-2 py-1 bg-blue-500/10 text-blue-300 rounded-full text-xs">
-                      Aguardando confirmação de recebimento
-                    </span>
-                  </div>
-                ) : product?.status === 'loan_accepted' ? (
-                  <div className="flex flex-col space-y-1">
-                    <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs font-semibold">
-                      Empréstimo Aceito
-                    </span>
-                    <span className="px-2 py-1 bg-blue-500/10 text-blue-300 rounded-full text-xs">
-                      Aguardando confirmação de recebimento
-                    </span>
-                  </div>
-                ) : product?.status === 'loaned' ? (
-                  <div className="flex flex-col space-y-1">
-                    <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-semibold">
-                      ✓ Emprestado
-                    </span>
-                    <span className="px-2 py-1 bg-yellow-500/10 text-yellow-300 rounded-full text-xs">
-                      Emprestado para {product.loanedToUserName || 'um usuário'}
-                    </span>
-                  </div>
-                ) : product?.type === 'donation' ? (
-                  <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs">
-                    Doação
-                  </span>
-                ) : product?.type === 'loan' ? (
-                  <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded-full text-xs">
-                    Empréstimo
-                  </span>
-                ) : (
-                  <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs">
-                    Disponível
-                  </span>
-                )}
-                {product?.condition && product?.status !== 'traded' && (
-                  <span className="px-2 py-1 bg-slate-700 text-gray-300 rounded-full text-xs">
-                    {product.condition === 'excellent' ? 'Excelente' :
-                     product.condition === 'good' ? 'Bom' :
-                     product.condition === 'fair' ? 'Regular' : 'Ruim'}
-                  </span>
-                )}
+        {/* Informações do Produto */}
+        <div className="mb-2">
+          <p className="text-sm font-semibold text-gray-100 mb-1">{product?.name || 'Produto'}</p>
+          {product?.description && (
+            <p className="text-sm text-gray-400 mb-2">{product.description}</p>
+          )}
+          <div className="flex items-center space-x-2 flex-wrap">
+            {product?.category && (
+              <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs">
+                {product.category}
+              </span>
+            )}
+            {product?.status === 'traded' ? (
+              <div className="flex flex-col space-y-1">
+                <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded-full text-xs font-semibold">
+                  ✓ Trocado
+                </span>
+                <span className="px-2 py-1 bg-purple-500/10 text-purple-300 rounded-full text-xs">
+                  com {product.tradedWith || 'Usuário'} por {product.tradedFor || 'Produto'}
+                </span>
               </div>
-            </div>
+            ) : product?.status === 'donated' ? (
+              <div className="flex flex-col space-y-1">
+                <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-semibold">
+                  ✓ Doado
+                </span>
+                <span className="px-2 py-1 bg-green-500/10 text-green-300 rounded-full text-xs">
+                  Doado para {product.donatedToUserName || 'um usuário'}
+                </span>
+              </div>
+            ) : product?.status === 'donation_accepted' ? (
+              <div className="flex flex-col space-y-1">
+                <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs font-semibold">
+                  Doação Aceita
+                </span>
+                <span className="px-2 py-1 bg-blue-500/10 text-blue-300 rounded-full text-xs">
+                  Aguardando confirmação de recebimento
+                </span>
+              </div>
+            ) : product?.status === 'loan_accepted' ? (
+              <div className="flex flex-col space-y-1">
+                <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs font-semibold">
+                  Empréstimo Aceito
+                </span>
+                <span className="px-2 py-1 bg-blue-500/10 text-blue-300 rounded-full text-xs">
+                  Aguardando confirmação de recebimento
+                </span>
+              </div>
+            ) : product?.status === 'loaned' ? (
+              <div className="flex flex-col space-y-1">
+                <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-semibold">
+                  ✓ Emprestado
+                </span>
+                <span className="px-2 py-1 bg-yellow-500/10 text-yellow-300 rounded-full text-xs">
+                  Emprestado para {product.loanedToUserName || 'um usuário'}
+                </span>
+              </div>
+            ) : product?.type === 'donation' ? (
+              <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs">
+                Doação
+              </span>
+            ) : product?.type === 'loan' ? (
+              <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded-full text-xs">
+                Empréstimo
+              </span>
+            ) : (
+              <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs">
+                Disponível
+              </span>
+            )}
+            {product?.condition && product?.status !== 'traded' && (
+              <span className="px-2 py-1 bg-slate-700 text-gray-300 rounded-full text-xs">
+                {product.condition === 'excellent' ? 'Excelente' :
+                 product.condition === 'good' ? 'Bom' :
+                 product.condition === 'fair' ? 'Regular' : 'Ruim'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Comentários */}
+        {showComments && (
+          <div className="mt-3 border-t border-slate-800 pt-3">
+            {commentsLoading ? (
+              <p className="text-xs text-gray-400">Carregando comentários...</p>
+            ) : comments.length === 0 ? (
+              <p className="text-xs text-gray-500">Seja o primeiro a comentar.</p>
+            ) : (
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {comments.map((comment) => (
+                  <div key={comment._id} className="flex items-start space-x-2 text-xs">
+                    {/* Avatar do autor do comentário */}
+                    {comment.user?.profilePic ? (
+                      <div className="w-6 h-6 rounded-full overflow-hidden border border-slate-700 flex-shrink-0">
+                        <img
+                          src={getImageUrl(comment.user.profilePic)}
+                          alt={comment.user?.name || 'Usuário'}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none'
+                            const fallback = e.target.parentElement.querySelector('.avatar-fallback-comment')
+                            if (fallback) fallback.style.display = 'flex'
+                          }}
+                        />
+                        <div className="avatar-fallback-comment hidden w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full items-center justify-center">
+                          <span className="text-white font-semibold text-[10px]">
+                            {comment.user?.name?.charAt(0).toUpperCase() || 'U'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-white font-semibold text-[10px]">
+                          {comment.user?.name?.charAt(0).toUpperCase() || 'U'}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-gray-100 text-[11px]">
+                          {comment.user?.name || 'Usuário'}
+                        </span>
+                        <span className="text-[10px] text-gray-500">
+                          {comment.createdAt
+                            ? new Date(comment.createdAt).toLocaleDateString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                              })
+                            : ''}
+                        </span>
+                      </div>
+                      <p className="text-gray-300 text-xs whitespace-pre-wrap">
+                        {comment.text}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <form onSubmit={handleSendComment} className="mt-2 flex items-center space-x-2">
+              <input
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Escreva um comentário..."
+                className="flex-1 bg-slate-900 border border-slate-700 rounded-full px-3 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="submit"
+                disabled={sendingComment || !newComment.trim()}
+                className="text-xs px-3 py-1.5 rounded-full bg-blue-500 hover:bg-blue-600 text-white font-semibold disabled:opacity-50"
+              >
+                Enviar
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   )

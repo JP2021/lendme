@@ -48,6 +48,32 @@ router.get('/conversations', ensureApiAuthenticated, async (req, res) => {
   }
 });
 
+// Buscar conversa por ID
+router.get('/conversations/by-id/:conversationId', ensureApiAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const { conversationId } = req.params;
+    
+    const conversation = await db.getConversationById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ message: 'Conversa não encontrada' });
+    }
+    
+    // Verifica se o usuário tem acesso à conversa
+    const user1Id = conversation.user1Id?.toString() || conversation.user1Id;
+    const user2Id = conversation.user2Id?.toString() || conversation.user2Id;
+    
+    if (userId !== user1Id && userId !== user2Id) {
+      return res.status(403).json({ message: 'Você não tem acesso a esta conversa' });
+    }
+    
+    return res.json(conversation);
+  } catch (err) {
+    console.error('Erro ao buscar conversa:', err);
+    return res.status(500).json({ message: 'Erro ao buscar conversa' });
+  }
+});
+
 // Enviar mensagem em uma conversa
 router.post('/conversations/:conversationId/messages', ensureApiAuthenticated, async (req, res) => {
   try {
@@ -113,4 +139,5 @@ router.get('/conversations/:conversationId/messages', ensureApiAuthenticated, as
 });
 
 module.exports = router;
+
 

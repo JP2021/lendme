@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Gift, MessageCircle, Check, X } from 'lucide-react'
 import BottomNavigation from '../components/BottomNavigation'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { useToast } from '../contexts/ToastContext'
 import { donationService } from '../services/donationService'
 import { getImageUrl } from '../utils/imageUtils'
 import { useAuth } from '../contexts/AuthContext'
 
 const Donations = () => {
   const { user } = useAuth()
+  const toast = useToast()
   const [donationSubTab, setDonationSubTab] = useState('pending') // 'pending', 'received', 'sent'
   const [donationRequests, setDonationRequests] = useState([])
   const [donationReceived, setDonationReceived] = useState([])
@@ -69,22 +72,27 @@ const Donations = () => {
     try {
       await donationService.acceptDonation(donationId)
       await loadData()
-      alert('Doação aceita!')
+      toast.success('Doação aceita!')
     } catch (error) {
       console.error('Erro ao aceitar doação:', error)
-      alert(error.response?.data?.message || 'Erro ao aceitar doação')
+      toast.error(error.response?.data?.message || 'Erro ao aceitar doação')
     }
   }
 
-  const handleRejectDonation = async (donationId) => {
-    if (!confirm('Tem certeza que deseja recusar esta solicitação de doação?')) return
+  const handleRejectDonation = (donationId) => {
+    setConfirmDialog({ isOpen: true, donationId })
+  }
+
+  const confirmRejectDonation = async () => {
+    const { donationId } = confirmDialog
+    if (!donationId) return
     
     try {
       // Atualiza o status para 'rejected' - você pode precisar criar esse endpoint
       await loadData()
     } catch (error) {
       console.error('Erro ao recusar doação:', error)
-      alert('Erro ao recusar doação')
+      toast.error('Erro ao recusar doação')
     }
   }
 
@@ -255,6 +263,17 @@ const Donations = () => {
         )}
       </div>
 
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, donationId: null })}
+        onConfirm={confirmRejectDonation}
+        title="Recusar doação"
+        message="Tem certeza que deseja recusar esta solicitação de doação?"
+        confirmText="Recusar"
+        cancelText="Cancelar"
+        type="warning"
+      />
+
       {/* Bottom Navigation */}
       <BottomNavigation />
     </div>
@@ -262,4 +281,5 @@ const Donations = () => {
 }
 
 export default Donations
+
 

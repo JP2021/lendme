@@ -27,6 +27,8 @@ export const productService = {
   // Listar produtos (feed)
   async getProducts(filters = {}) {
     const params = new URLSearchParams()
+    // Adiciona timestamp para evitar cache e garantir randomização a cada requisição
+    params.append('_t', Date.now())
     if (filters.category) params.append('category', filters.category)
     if (filters.search) params.append('search', filters.search)
     if (filters.limit) params.append('limit', filters.limit)
@@ -77,6 +79,24 @@ export const productService = {
   // Deletar produto
   async deleteProduct(productId) {
     const response = await api.delete(`/products/${productId}`)
+    return response.data
+  },
+
+  // Curtir / descurtir produto
+  async toggleLike(productId) {
+    const response = await api.post(`/products/${productId}/like`)
+    return response.data
+  },
+
+  // Listar comentários do produto
+  async getComments(productId) {
+    const response = await api.get(`/products/${productId}/comments`)
+    return response.data
+  },
+
+  // Criar comentário no produto
+  async addComment(productId, text) {
+    const response = await api.post(`/products/${productId}/comments`, { text })
     return response.data
   },
 }

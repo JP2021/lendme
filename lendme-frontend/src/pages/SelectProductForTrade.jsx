@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Package, Check } from 'lucide-react'
 import BottomNavigation from '../components/BottomNavigation'
+import { useToast } from '../contexts/ToastContext'
 import { productService } from '../services/productService'
 import { tradeService } from '../services/tradeService'
 import { useAuth } from '../contexts/AuthContext'
@@ -11,6 +12,7 @@ const SelectProductForTrade = () => {
   const { productId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const toast = useToast()
   const [targetProduct, setTargetProduct] = useState(null)
   const [myProducts, setMyProducts] = useState([])
   const [selectedProduct, setSelectedProduct] = useState(null)
@@ -62,7 +64,7 @@ const SelectProductForTrade = () => {
         toProductId: productId
       })
       
-      alert('Solicitação de troca enviada com sucesso!')
+      toast.success('Solicitação de troca enviada com sucesso!')
       navigate('/trades')
     } catch (err) {
       setError(err.response?.data?.message || 'Erro ao criar solicitação de troca')

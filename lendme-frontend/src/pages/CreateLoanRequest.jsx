@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import BottomNavigation from '../components/BottomNavigation'
+import { useToast } from '../contexts/ToastContext'
 import { loanService } from '../services/loanService'
 
 const CreateLoanRequest = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [itemName, setItemName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -23,7 +25,7 @@ const CreateLoanRequest = () => {
 
     try {
       await loanService.createLoanRequest(itemName.trim())
-      alert('Pedido de empréstimo criado com sucesso!')
+      toast.success('Pedido de empréstimo criado com sucesso!')
       navigate('/')
     } catch (err) {
       console.error('Erro ao criar pedido de empréstimo:', err)
@@ -100,4 +102,5 @@ const CreateLoanRequest = () => {
 }
 
 export default CreateLoanRequest
+
 

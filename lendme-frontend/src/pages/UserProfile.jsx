@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, UserPlus, MessageCircle, Settings, Grid3x3, List, Check, X } from 'lucide-react'
 import BottomNavigation from '../components/BottomNavigation'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { userService } from '../services/userService'
 import { authService } from '../services/authService'
 import { productService } from '../services/productService'
@@ -12,6 +13,7 @@ const UserProfile = () => {
   const { userId } = useParams()
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
+  const toast = useToast()
   const [profileUser, setProfileUser] = useState(null)
   const [userProducts, setUserProducts] = useState([])
   const [viewMode, setViewMode] = useState('grid')
@@ -101,9 +103,9 @@ const UserProfile = () => {
     try {
       await authService.sendFriendRequest(userId)
       await loadData() // Recarrega para atualizar o status
-      alert('Solicitação de amizade enviada!')
+      toast.success('Solicitação de amizade enviada!')
     } catch (err) {
-      alert(err.response?.data?.message || 'Erro ao enviar solicitação')
+      toast.error(err.response?.data?.message || 'Erro ao enviar solicitação')
     } finally {
       setLoadingAction(false)
     }
@@ -116,9 +118,9 @@ const UserProfile = () => {
     try {
       await authService.acceptFriendRequest(profileUser.friendRequestId)
       await loadData()
-      alert('Solicitação aceita!')
+      toast.success('Solicitação aceita!')
     } catch (err) {
-      alert(err.response?.data?.message || 'Erro ao aceitar solicitação')
+      toast.error(err.response?.data?.message || 'Erro ao aceitar solicitação')
     } finally {
       setLoadingAction(false)
     }
@@ -132,7 +134,7 @@ const UserProfile = () => {
       await authService.rejectFriendRequest(profileUser.friendRequestId)
       await loadData()
     } catch (err) {
-      alert(err.response?.data?.message || 'Erro ao recusar solicitação')
+      toast.error(err.response?.data?.message || 'Erro ao recusar solicitação')
     } finally {
       setLoadingAction(false)
     }
@@ -147,7 +149,7 @@ const UserProfile = () => {
       const conversation = await messageService.getOrCreateConversation(userId)
       navigate(`/conversations/${conversation._id}`)
     } catch (err) {
-      alert(err.response?.data?.message || 'Erro ao iniciar conversa')
+      toast.error(err.response?.data?.message || 'Erro ao iniciar conversa')
     } finally {
       setLoadingAction(false)
     }

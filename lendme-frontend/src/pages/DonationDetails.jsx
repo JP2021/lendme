@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Check, Gift, User, MessageCircle, Send } from 'lucide-react'
 import BottomNavigation from '../components/BottomNavigation'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { useToast } from '../contexts/ToastContext'
 import { donationService } from '../services/donationService'
 import { useAuth } from '../contexts/AuthContext'
 import { getImageUrl } from '../utils/imageUtils'
@@ -10,6 +12,7 @@ const DonationDetails = () => {
   const { donationId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const toast = useToast()
   const [donation, setDonation] = useState(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -18,6 +21,7 @@ const DonationDetails = () => {
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
   const messagesEndRef = useRef(null)
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, action: null })
 
   useEffect(() => {
     if (donationId && user) {
@@ -138,40 +142,46 @@ const DonationDetails = () => {
       await loadMessages()
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
-      alert(error.response?.data?.message || 'Erro ao enviar mensagem')
+      toast.error(error.response?.data?.message || 'Erro ao enviar mensagem')
     } finally {
       setSendingMessage(false)
     }
   }
 
-  const handleAccept = async () => {
-    if (!confirm('Tem certeza que deseja aceitar esta doação?')) return
+  const handleAccept = () => {
+    setConfirmDialog({ isOpen: true, action: 'accept' })
+  }
 
+  const confirmAccept = async () => {
     setActionLoading(true)
     try {
       await donationService.acceptDonation(donationId)
       await loadDonation()
       await loadMessages()
-      alert('Doação aceita! Uma conversa foi iniciada para combinar os detalhes.')
+      toast.success('Doação aceita! Uma conversa foi iniciada para combinar os detalhes.')
     } catch (err) {
       setError(err.response?.data?.message || 'Erro ao aceitar doação')
     } finally {
       setActionLoading(false)
+      setConfirmDialog({ isOpen: false, action: null })
     }
   }
 
-  const handleConfirmReceived = async () => {
-    if (!confirm('Tem certeza que você recebeu o produto? Esta ação não pode ser desfeita.')) return
+  const handleConfirmReceived = () => {
+    setConfirmDialog({ isOpen: true, action: 'confirmReceived' })
+  }
 
+  const confirmReceived = async () => {
     setActionLoading(true)
     try {
       await donationService.confirmReceived(donationId)
       await loadDonation()
-      alert('Recebimento confirmado com sucesso!')
+      toast.success('Recebimento confirmado com sucesso!')
     } catch (err) {
       setError(err.response?.data?.message || 'Erro ao confirmar recebimento')
     } finally {
       setActionLoading(false)
+      setConfirmDialog({ isOpen: false, action: null })
     }
   }
 
@@ -405,6 +415,28 @@ const DonationDetails = () => {
           </div>
         )}
       </main>
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen && confirmDialog.action === 'accept'}
+        onClose={() => setConfirmDialog({ isOpen: false, action: null })}
+        onConfirm={confirmAccept}
+        title="Aceitar doação"
+        message="Tem certeza que deseja aceitar esta doação?"
+        confirmText="Aceitar"
+        cancelText="Cancelar"
+        type="success"
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen && confirmDialog.action === 'confirmReceived'}
+        onClose={() => setConfirmDialog({ isOpen: false, action: null })}
+        onConfirm={confirmReceived}
+        title="Confirmar recebimento"
+        message="Tem certeza que você recebeu o produto? Esta ação não pode ser desfeita."
+        confirmText="Confirmar"
+        cancelText="Cancelar"
+        type="warning"
+      />
 
       <BottomNavigation />
     </div>

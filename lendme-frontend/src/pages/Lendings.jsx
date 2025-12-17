@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeftRight, Plus, Search, Package, MessageCircle, Check } from 'lucide-react'
 import BottomNavigation from '../components/BottomNavigation'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { useToast } from '../contexts/ToastContext'
 import { productService } from '../services/productService'
 import { tradeService } from '../services/tradeService'
 import { getImageUrl } from '../utils/imageUtils'
@@ -9,11 +11,13 @@ import { useAuth } from '../contexts/AuthContext'
 
 const Trades = () => {
   const { user } = useAuth()
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState('available')
   const [myProducts, setMyProducts] = useState([])
   const [trades, setTrades] = useState([])
   const [tradeRequests, setTradeRequests] = useState([])
   const [loading, setLoading] = useState(true)
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, action: null, data: null })
 
   useEffect(() => {
     if (user) {
@@ -202,15 +206,25 @@ const Trades = () => {
     }
   }
 
-  const handleDeleteProduct = async (productId) => {
-    if (!confirm('Tem certeza que deseja remover este produto?')) return
-    
+  const handleDeleteProduct = (productId) => {
+    setConfirmDialog({ 
+      isOpen: true, 
+      action: 'deleteProduct', 
+      data: { productId } 
+    })
+  }
+
+  const confirmDeleteProduct = async () => {
+    const { productId } = confirmDialog.data
     try {
       await productService.deleteProduct(productId)
       await loadData()
+      toast.success('Produto removido com sucesso!')
     } catch (error) {
       console.error('Erro ao deletar produto:', error)
-      alert('Erro ao deletar produto')
+      toast.error('Erro ao deletar produto')
+    } finally {
+      setConfirmDialog({ isOpen: false, action: null, data: null })
     }
   }
 
@@ -220,7 +234,7 @@ const Trades = () => {
       await loadData()
     } catch (error) {
       console.error('Erro ao aceitar troca:', error)
-      alert('Erro ao aceitar troca')
+      toast.error('Erro ao aceitar troca')
     }
   }
 
@@ -230,7 +244,7 @@ const Trades = () => {
       await loadData()
     } catch (error) {
       console.error('Erro ao recusar troca:', error)
-      alert('Erro ao recusar troca')
+      toast.error('Erro ao recusar troca')
     }
   }
 
@@ -950,6 +964,17 @@ const Trades = () => {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen && confirmDialog.action === 'deleteProduct'}
+        onClose={() => setConfirmDialog({ isOpen: false, action: null, data: null })}
+        onConfirm={confirmDeleteProduct}
+        title="Remover produto"
+        message="Tem certeza que deseja remover este produto? Esta ação não pode ser desfeita."
+        confirmText="Remover"
+        cancelText="Cancelar"
+        type="danger"
+      />
 
       {/* Bottom Navigation */}
       <BottomNavigation />

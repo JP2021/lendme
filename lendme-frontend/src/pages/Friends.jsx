@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { Search, UserPlus, UserMinus, MessageCircle, Check, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNavigation from '../components/BottomNavigation'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { authService } from '../services/authService'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { getImageUrl } from '../utils/imageUtils'
 
 const Friends = () => {
@@ -16,6 +18,7 @@ const Friends = () => {
   const [suggestions, setSuggestions] = useState([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(null)
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, friendId: null })
 
   useEffect(() => {
     if (user) {
@@ -90,7 +93,7 @@ const Friends = () => {
       await loadData()
     } catch (error) {
       console.error('[Friends] Erro ao aceitar:', error)
-      alert(error.response?.data?.message || 'Erro ao aceitar solicitação')
+      toast.error(error.response?.data?.message || 'Erro ao aceitar solicitação')
     } finally {
       setActionLoading(null)
     }
@@ -105,7 +108,7 @@ const Friends = () => {
       await loadData()
     } catch (error) {
       console.error('[Friends] Erro ao recusar:', error)
-      alert('Erro ao recusar solicitação')
+      toast.error('Erro ao recusar solicitação')
     } finally {
       setActionLoading(null)
     }
@@ -117,7 +120,7 @@ const Friends = () => {
     try {
       setActionLoading(toUserId)
       await authService.sendFriendRequest(toUserId)
-      alert('Solicitação enviada!')
+      toast.success('Solicitação enviada!')
       await loadData()
       // Atualiza sugestões para remover o usuário
       setSuggestions(prev => prev.filter(u => {
@@ -126,25 +129,31 @@ const Friends = () => {
       }))
     } catch (error) {
       console.error('[Friends] Erro ao enviar:', error)
-      alert(error.response?.data?.message || 'Erro ao enviar solicitação')
+      toast.error(error.response?.data?.message || 'Erro ao enviar solicitação')
     } finally {
       setActionLoading(null)
     }
   }
 
-  const handleRemoveFriend = async (friendId) => {
-    if (!confirm('Tem certeza que deseja remover este amigo?')) return
-    if (actionLoading) return
+  const handleRemoveFriend = (friendId) => {
+    setConfirmDialog({ isOpen: true, friendId })
+  }
+
+  const confirmRemoveFriend = async () => {
+    const { friendId } = confirmDialog
+    if (!friendId || actionLoading) return
     
     try {
       setActionLoading(friendId)
       await authService.removeFriend(friendId)
       await loadData()
+      toast.success('Amigo removido com sucesso!')
     } catch (error) {
       console.error('[Friends] Erro ao remover:', error)
-      alert('Erro ao remover amigo')
+      toast.error('Erro ao remover amigo')
     } finally {
       setActionLoading(null)
+      setConfirmDialog({ isOpen: false, friendId: null })
     }
   }
 
@@ -154,7 +163,7 @@ const Friends = () => {
       const conversation = await messageService.getOrCreateConversation(friendId)
       navigate(`/conversations/${conversation._id}`)
     } catch (err) {
-      alert(err.response?.data?.message || 'Erro ao iniciar conversa')
+      toast.error(err.response?.data?.message || 'Erro ao iniciar conversa')
     }
   }
 
@@ -364,6 +373,17 @@ const Friends = () => {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, friendId: null })}
+        onConfirm={confirmRemoveFriend}
+        title="Remover amigo"
+        message="Tem certeza que deseja remover este amigo? Esta ação não pode ser desfeita."
+        confirmText="Remover"
+        cancelText="Cancelar"
+        type="danger"
+      />
 
       <BottomNavigation />
     </div>

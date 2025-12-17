@@ -24,6 +24,7 @@ import DonationDetails from './pages/DonationDetails'
 import LoanDetails from './pages/LoanDetails'
 import UserProfile from './pages/UserProfile'
 import Conversation from './pages/Conversation'
+import Messages from './pages/Messages'
 import Donations from './pages/Donations'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
@@ -163,6 +164,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Conversation />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <Messages />
                 </ProtectedRoute>
               }
             />

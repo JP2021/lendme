@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Check, X, Package, User, MessageCircle, Send } from 'lucide-react'
 import BottomNavigation from '../components/BottomNavigation'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { useToast } from '../contexts/ToastContext'
 import { tradeService } from '../services/tradeService'
 import { tradeMessageService } from '../services/tradeMessageService'
 import { useAuth } from '../contexts/AuthContext'
@@ -11,6 +13,7 @@ const TradeDetails = () => {
   const { tradeId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const toast = useToast()
   const [trade, setTrade] = useState(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -19,6 +22,7 @@ const TradeDetails = () => {
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
   const messagesEndRef = useRef(null)
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, action: null })
 
   useEffect(() => {
     loadTrade()
@@ -80,30 +84,35 @@ const TradeDetails = () => {
       await loadMessages()
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
-      alert('Erro ao enviar mensagem')
+      toast.error('Erro ao enviar mensagem')
     } finally {
       setSendingMessage(false)
     }
   }
 
-  const handleAccept = async () => {
-    if (!confirm('Tem certeza que deseja aceitar esta troca?')) return
+  const handleAccept = () => {
+    setConfirmDialog({ isOpen: true, action: 'accept' })
+  }
 
+  const confirmAccept = async () => {
     setActionLoading(true)
     try {
       await tradeService.acceptTrade(tradeId)
       await loadTrade()
-      alert('Troca aceita com sucesso!')
+      toast.success('Troca aceita com sucesso!')
     } catch (err) {
       setError(err.response?.data?.message || 'Erro ao aceitar troca')
     } finally {
       setActionLoading(false)
+      setConfirmDialog({ isOpen: false, action: null })
     }
   }
 
-  const handleReject = async () => {
-    if (!confirm('Tem certeza que deseja recusar esta troca?')) return
+  const handleReject = () => {
+    setConfirmDialog({ isOpen: true, action: 'reject' })
+  }
 
+  const confirmReject = async () => {
     setActionLoading(true)
     try {
       await tradeService.rejectTrade(tradeId)
@@ -112,21 +121,25 @@ const TradeDetails = () => {
       setError(err.response?.data?.message || 'Erro ao recusar troca')
     } finally {
       setActionLoading(false)
+      setConfirmDialog({ isOpen: false, action: null })
     }
   }
 
-  const handleComplete = async () => {
-    if (!confirm('Confirmar que a troca foi concluída?')) return
+  const handleComplete = () => {
+    setConfirmDialog({ isOpen: true, action: 'complete' })
+  }
 
+  const confirmComplete = async () => {
     setActionLoading(true)
     try {
       await tradeService.completeTrade(tradeId)
       await loadTrade()
-      alert('Troca marcada como concluída!')
+      toast.success('Troca marcada como concluída!')
     } catch (err) {
       setError(err.response?.data?.message || 'Erro ao concluir troca')
     } finally {
       setActionLoading(false)
+      setConfirmDialog({ isOpen: false, action: null })
     }
   }
 
@@ -390,6 +403,39 @@ const TradeDetails = () => {
           )}
         </div>
       </main>
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen && confirmDialog.action === 'accept'}
+        onClose={() => setConfirmDialog({ isOpen: false, action: null })}
+        onConfirm={confirmAccept}
+        title="Aceitar troca"
+        message="Tem certeza que deseja aceitar esta troca?"
+        confirmText="Aceitar"
+        cancelText="Cancelar"
+        type="success"
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen && confirmDialog.action === 'reject'}
+        onClose={() => setConfirmDialog({ isOpen: false, action: null })}
+        onConfirm={confirmReject}
+        title="Recusar troca"
+        message="Tem certeza que deseja recusar esta troca?"
+        confirmText="Recusar"
+        cancelText="Cancelar"
+        type="warning"
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen && confirmDialog.action === 'complete'}
+        onClose={() => setConfirmDialog({ isOpen: false, action: null })}
+        onConfirm={confirmComplete}
+        title="Confirmar conclusão"
+        message="Confirmar que a troca foi concluída?"
+        confirmText="Confirmar"
+        cancelText="Cancelar"
+        type="success"
+      />
 
       <BottomNavigation />
     </div>

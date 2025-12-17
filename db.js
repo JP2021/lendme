@@ -516,6 +516,7 @@ async function createProduct(product) {
         createdAt: new Date(),
         status: 'available',
         type: product.type || 'trade', // 'trade', 'donation', 'loan'
+        likes: [],
     });
 }
 
@@ -592,14 +593,39 @@ async function getProducts(userId = null, filters = {}) {
         ...u,
         _id: u._id?.toString() || u._id
     }]));
-    
+
+    // Conta comentários por produto
+    const productIds = products.map(p => p._id);
+    let commentsCountMap = new Map();
+    if (productIds.length > 0) {
+        const commentsAgg = await conn.collection("productComments").aggregate([
+            { $match: { productId: { $in: productIds } } },
+            { $group: { _id: "$productId", count: { $sum: 1 } } }
+        ]).toArray();
+        commentsCountMap = new Map(
+            commentsAgg.map(c => [c._id.toString(), c.count])
+        );
+    }
+
     return products.map(product => {
         const user = userMap.get(product.userId.toString());
+        const likesArr = product.likes || [];
+        const likes = likesArr.map(id => id?.toString ? id.toString() : id);
+        const likesCount = Array.isArray(likesArr) ? likesArr.length : 0;
+        const commentsCount = commentsCountMap.get(product._id.toString()) || 0;
+
         return {
             ...product,
+            likes,
+            likesCount,
+            commentsCount,
             user: user ? {
-                ...user,
-                _id: user._id?.toString() || user._id
+                _id: user._id?.toString() || user._id,
+                name: user.name || 'Usuário',
+                profilePic: user.profilePic || null,
+                email: user.email || null,
+                bio: user.bio || null,
+                isPublic: user.isPublic !== false
             } : null
         };
     });
@@ -618,13 +644,113 @@ async function getProduct(productId) {
         { projection: { password: 0 } }
     );
     
+    const commentsCount = await conn.collection("productComments").countDocuments({
+        productId: ObjectId.createFromHexString(productId.toString())
+    });
+
     return {
         ...product,
+        likes: (product.likes || []).map(id => id?.toString ? id.toString() : id),
+        likesCount: Array.isArray(product.likes) ? product.likes.length : 0,
+        commentsCount,
         user: user ? {
-            ...user,
-            _id: user._id?.toString() || user._id
+            _id: user._id?.toString() || user._id,
+            name: user.name || 'Usuário',
+            profilePic: user.profilePic || null,
+            email: user.email || null,
+            bio: user.bio || null,
+            isPublic: user.isPublic !== false
         } : null
     };
+}
+
+// Curtidas de produto
+async function toggleProductLike(productId, userId) {
+    const conn = await connect();
+    const pid = ObjectId.createFromHexString(productId.toString());
+    const uid = ObjectId.createFromHexString(userId.toString());
+
+    const product = await conn.collection("products").findOne({ _id: pid });
+    if (!product) return null;
+
+    const likes = product.likes || [];
+    const hasLiked = likes.some(id => {
+        const idStr = id?.toString ? id.toString() : String(id);
+        return idStr === userId.toString();
+    });
+
+    if (hasLiked) {
+        await conn.collection("products").updateOne(
+            { _id: pid },
+            { $pull: { likes: uid } }
+        );
+    } else {
+        await conn.collection("products").updateOne(
+            { _id: pid },
+            { $addToSet: { likes: uid } }
+        );
+    }
+
+    const updated = await conn.collection("products").findOne({ _id: pid });
+    const updatedLikes = (updated.likes || []).map(id => id?.toString ? id.toString() : id);
+
+    return {
+        ...updated,
+        likes: updatedLikes,
+        likesCount: updatedLikes.length,
+        liked: !hasLiked,
+    };
+}
+
+// Comentários de produto
+async function createProductComment(commentData) {
+    const conn = await connect();
+    const result = await conn.collection("productComments").insertOne({
+        productId: ObjectId.createFromHexString(commentData.productId.toString()),
+        userId: ObjectId.createFromHexString(commentData.userId.toString()),
+        text: commentData.text,
+        createdAt: new Date(),
+    });
+
+    const comment = await conn.collection("productComments").findOne({ _id: result.insertedId });
+    const user = await conn.collection("users").findOne(
+        { _id: comment.userId },
+        { projection: { password: 0 } }
+    );
+
+    return {
+        ...comment,
+        _id: comment._id?.toString(),
+        productId: comment.productId?.toString(),
+        userId: comment.userId?.toString(),
+        user,
+    };
+}
+
+async function getProductComments(productId) {
+    const conn = await connect();
+    const comments = await conn.collection("productComments")
+        .find({ productId: ObjectId.createFromHexString(productId.toString()) })
+        .sort({ createdAt: 1 })
+        .toArray();
+
+    const userIds = [...new Set(comments.map(c => c.userId))];
+    const users = userIds.length > 0
+        ? await conn.collection("users")
+            .find({ _id: { $in: userIds } })
+            .project({ password: 0 })
+            .toArray()
+        : [];
+
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+
+    return comments.map(c => ({
+        ...c,
+        _id: c._id?.toString(),
+        productId: c.productId?.toString(),
+        userId: c.userId?.toString(),
+        user: userMap.get(c.userId.toString()),
+    }));
 }
 
 async function updateProduct(productId, userId, updates) {
@@ -1761,6 +1887,9 @@ module.exports = {
     getProduct,
     updateProduct,
     deleteProduct,
+    toggleProductLike,
+    createProductComment,
+    getProductComments,
     // Trocas
     createTrade,
     getTrades,

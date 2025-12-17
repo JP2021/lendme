@@ -4,12 +4,14 @@ import { ArrowLeft, Send, MessageCircle } from 'lucide-react'
 import BottomNavigation from '../components/BottomNavigation'
 import { messageService } from '../services/messageService'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { getImageUrl } from '../utils/imageUtils'
 
 const Conversation = () => {
   const { conversationId } = useParams()
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
+  const toast = useToast()
   const [conversation, setConversation] = useState(null)
   const [messages, setMessages] = useState([])
   const [newMessage, setNewMessage] = useState('')
@@ -19,8 +21,9 @@ const Conversation = () => {
 
   useEffect(() => {
     if (conversationId && currentUser) {
-      loadConversation()
-      loadMessages()
+      loadConversation().then(() => {
+        loadMessages()
+      })
     }
   }, [conversationId, currentUser])
 
@@ -42,22 +45,41 @@ const Conversation = () => {
 
   const loadConversation = async () => {
     try {
+      setLoading(true)
+      // Tenta buscar a conversa diretamente pela lista
       const conversations = await messageService.getConversations()
       const conv = conversations.find(c => c._id === conversationId)
       if (conv) {
         setConversation(conv)
+      } else {
+        // Se não encontrou na lista, tenta buscar pelo ID diretamente
+        try {
+          const directConv = await messageService.getConversationById(conversationId)
+          if (directConv) {
+            setConversation(directConv)
+          }
+        } catch (directError) {
+          console.error('Erro ao buscar conversa diretamente:', directError)
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar conversa:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
   const loadMessages = async () => {
+    if (!conversationId) return
     try {
       const messagesData = await messageService.getMessages(conversationId)
-      setMessages(messagesData || [])
+      setMessages(Array.isArray(messagesData) ? messagesData : [])
     } catch (error) {
       console.error('Erro ao carregar mensagens:', error)
+      // Se der erro, tenta carregar a conversa novamente
+      if (error.response?.status === 404) {
+        await loadConversation()
+      }
     }
   }
 
@@ -72,21 +94,21 @@ const Conversation = () => {
       await loadMessages()
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
-      alert(error.response?.data?.message || 'Erro ao enviar mensagem')
+      toast.error(error.response?.data?.message || 'Erro ao enviar mensagem')
     } finally {
       setSendingMessage(false)
     }
   }
 
-  if (loading && !conversation) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center pb-20">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     )
   }
 
-  if (!conversation) {
+  if (!conversation && !loading) {
     return (
       <div className="min-h-screen bg-slate-950 pb-20">
         <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800">

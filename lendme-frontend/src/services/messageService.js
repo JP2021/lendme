@@ -13,6 +13,12 @@ export const messageService = {
     return response.data
   },
 
+  // Buscar conversa por ID
+  async getConversationById(conversationId) {
+    const response = await api.get(`/conversations/by-id/${conversationId}`)
+    return response.data
+  },
+
   // Enviar mensagem
   async sendMessage(conversationId, message) {
     const response = await api.post(`/conversations/${conversationId}/messages`, { message })
@@ -25,4 +31,5 @@ export const messageService = {
     return response.data
   },
 }
+
 
