@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Search, Plus, ArrowLeftRight, Gift, Users, User } from 'lucide-react'
+import { Home, Search, Plus, ArrowLeftRight, Gift, Users, User, Camera } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { authService } from '../services/authService'
 import { donationService } from '../services/donationService'
@@ -41,6 +41,7 @@ const BottomNavigation = () => {
   const navItems = [
     { icon: Home, path: '/', label: 'Início' },
     { icon: Search, path: '/explore', label: 'Explorar' },
+    { icon: Camera, path: '/create-post', label: 'Postar' },
     { icon: Plus, path: '/add-product', label: 'Adicionar' },
     { icon: ArrowLeftRight, path: '/trades', label: 'Trocas' },
     { icon: Gift, path: '/donations', label: 'Doações', badge: pendingDonationsCount },
@@ -60,7 +61,7 @@ const BottomNavigation = () => {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-colors relative ${
+              className={`flex items-center justify-center flex-1 h-full transition-colors relative ${
                 isActive ? 'text-blue-400' : 'text-gray-400'
               }`}
             >
@@ -72,7 +73,6 @@ const BottomNavigation = () => {
                   </span>
                 )}
               </div>
-              <span className="text-xs mt-1">{item.label}</span>
             </Link>
           )
         })}

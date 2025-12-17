@@ -46,36 +46,16 @@ const Trades = () => {
         // e que estão pendentes
         const currentUserId = String(user._id?.toString ? user._id.toString() : user._id || '')
         
-        console.log('[DEBUG] Usuário atual ID:', currentUserId)
-        console.log('[DEBUG] Total de trocas retornadas:', data.length)
-        
         const receivedRequests = data.filter(t => {
           // Normaliza os IDs para comparação
           const tradeToUserId = String(t.toUserId || '')
-          const tradeFromUserId = String(t.fromUserId || '')
           const isPending = t.status === 'pending'
           const isReceived = isPending && tradeToUserId === currentUserId
-          
-          // Log detalhado para debug
-          if (isPending) {
-            console.log('[DEBUG] Troca pendente:', {
-              tradeId: t._id,
-              fromUserId: tradeFromUserId,
-              toUserId: tradeToUserId,
-              currentUserId: currentUserId,
-              matches: tradeToUserId === currentUserId,
-              fromUser: t.fromUser?.name,
-              toUser: t.toUser?.name,
-              fromProduct: t.fromProduct?.name,
-              toProduct: t.toProduct?.name
-            })
-          }
           
           return isReceived
         })
         
         setTradeRequests(receivedRequests)
-        console.log('[DEBUG] Solicitações recebidas filtradas:', receivedRequests.length, 'de', data.length, 'total')
         
         if (receivedRequests.length === 0 && data.length > 0) {
           console.warn('[DEBUG] Nenhuma solicitação recebida encontrada, mas há trocas pendentes. Verifique a comparação de IDs.')
@@ -102,8 +82,6 @@ const Trades = () => {
             })
           ])
           
-          console.log('[DEBUG] Doações recebidas:', received.length)
-          console.log('[DEBUG] Doações enviadas:', sent.length)
           
           // Organiza por sub-aba
           // received = doações onde o usuário é o dono (toUserId) - FEZ/DOOU
@@ -128,8 +106,6 @@ const Trades = () => {
               d.status === 'confirmed' || 
               d.status === 'rejected'
             )
-            console.log('[DEBUG] Doações feitas filtradas:', madeDonations.length, 'de', received.length, 'recebidas')
-            console.log('[DEBUG] Status das doações recebidas:', received.map(d => ({ id: d._id, status: d.status })))
             setDonationRequests([])
             setDonationReceived([])
             setDonationSent(madeDonations)
@@ -162,8 +138,6 @@ const Trades = () => {
             })
           ])
           
-          console.log('[DEBUG] Empréstimos recebidos:', received.length)
-          console.log('[DEBUG] Empréstimos enviados:', sent.length)
           
           // Organiza por sub-aba
           // received = empréstimos onde o usuário é o emprestador (lenderId) - FEZ/EMPRESTOU

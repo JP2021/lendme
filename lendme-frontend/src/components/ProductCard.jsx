@@ -94,6 +94,18 @@ const ProductCard = ({ product, user }) => {
         console.error('ID do empréstimo não encontrado:', product)
         toast.error('Erro: ID do empréstimo não encontrado')
       }
+    } else if (product.type === 'loan' && product.status === 'available') {
+      // Se é um produto disponível para empréstimo, solicita empréstimo diretamente
+      setLoading(true)
+      try {
+        await loanService.requestProductLoan(product._id)
+        toast.success('Solicitação de empréstimo enviada!')
+        window.location.reload()
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Erro ao solicitar empréstimo')
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -290,10 +302,10 @@ const ProductCard = ({ product, user }) => {
               onClick={handleToggleLike}
               disabled={likeLoading}
               className={`flex items-center space-x-1 transition-colors ${
-                liked ? 'text-red-400' : 'text-gray-300 hover:text-red-400'
+                liked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'
               } disabled:opacity-60`}
             >
-              <Heart size={24} />
+              <Heart size={24} fill={liked ? 'currentColor' : 'none'} />
               <span className="text-xs">{likesCount > 0 ? likesCount : ''}</span>
             </button>
             <button
@@ -312,6 +324,10 @@ const ProductCard = ({ product, user }) => {
             const productUserId = product.userId?.toString ? product.userId.toString() : product.userId
             const currentUserId = currentUser._id?.toString ? currentUser._id.toString() : currentUser._id
             const isNotOwner = productUserId !== currentUserId
+            
+            // Determina o tipo do produto (padrão é 'trade' se não especificado)
+            const productType = product.type || 'trade'
+            const productStatus = product.status || 'available'
 
             // Se é pedido de empréstimo, mostra botão "Emprestar"
             if (isLoanRequest && isNotOwner) {
@@ -328,7 +344,7 @@ const ProductCard = ({ product, user }) => {
             }
 
             // Se é doação, mostra botão "Eu quero" (apenas se disponível e sem doação aceita)
-            if (product.type === 'donation' && product.status === 'available' && isNotOwner) {
+            if (productType === 'donation' && productStatus === 'available' && isNotOwner) {
               return (
                 <button 
                   onClick={handleDonation}
@@ -341,22 +357,22 @@ const ProductCard = ({ product, user }) => {
               )
             }
 
-            // Se é empréstimo, mostra botão "Solicitar Empréstimo"
-            if (product.type === 'loan' && product.status === 'available' && isNotOwner) {
+            // Se é empréstimo, mostra botão "Pegar Emprestado"
+            if (productType === 'loan' && productStatus === 'available' && isNotOwner) {
               return (
                 <button 
-                  onClick={() => navigate('/create-loan')}
+                  onClick={handleLoan}
                   disabled={loading}
                   className="flex items-center space-x-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors disabled:opacity-50"
                 >
                   <Handshake size={20} />
-                  <span className="text-sm font-medium">Solicitar Empréstimo</span>
+                  <span className="text-sm font-medium">Pegar Emprestado</span>
                 </button>
               )
             }
 
-            // Se é troca normal
-            if (product.type === 'trade' && product.status === 'available' && isNotOwner) {
+            // Se é troca normal (ou tipo não especificado, que por padrão é 'trade')
+            if ((productType === 'trade' || !product.type) && productStatus === 'available' && isNotOwner) {
               return (
                 <button 
                   onClick={handleTrade}

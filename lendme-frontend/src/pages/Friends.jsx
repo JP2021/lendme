@@ -47,8 +47,6 @@ const Friends = () => {
         authService.getReceivedFriendRequests().catch(() => [])
       ])
       
-      console.log('[Friends] Amigos carregados:', friendsData?.length || 0)
-      console.log('[Friends] Solicitações carregadas:', requestsData?.length || 0)
       
       setFriends(Array.isArray(friendsData) ? friendsData : [])
       setRequests(Array.isArray(requestsData) ? requestsData : [])
@@ -391,3 +389,4 @@ const Friends = () => {
 }
 
 export default Friends
+

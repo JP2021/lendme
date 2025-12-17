@@ -7,6 +7,12 @@ export const loanService = {
     return response.data
   },
 
+  // Solicitar empréstimo de um produto específico
+  async requestProductLoan(productId) {
+    const response = await api.post('/loans/request-product', { productId })
+    return response.data
+  },
+
   // Listar pedidos de empréstimo
   async getLoans(type = 'received') {
     const response = await api.get(`/loans?type=${type}`)

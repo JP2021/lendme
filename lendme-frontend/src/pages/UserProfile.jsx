@@ -25,7 +25,6 @@ const UserProfile = () => {
   const safeUserProducts = Array.isArray(userProducts) ? userProducts : []
 
   useEffect(() => {
-    console.log('[DEBUG UserProfile] useEffect - userId:', userId, 'currentUser:', currentUser?._id)
     if (userId && currentUser) {
       loadData()
     }
@@ -37,11 +36,8 @@ const UserProfile = () => {
       setError('')
       setUserProducts([]) // Reseta para array vazio antes de carregar
       
-      console.log('[DEBUG UserProfile] Carregando dados para userId:', userId, 'tipo:', typeof userId)
-      
       const [userData, products] = await Promise.all([
         userService.getUser(userId).catch(err => {
-          console.error('[DEBUG UserProfile] Erro ao buscar usuário:', err)
           if (err.response?.status === 404) {
             setError('Usuário não encontrado')
           } else if (err.response?.status === 403) {
@@ -50,11 +46,9 @@ const UserProfile = () => {
           return null
         }),
         userService.getUserProducts(userId).then(products => {
-          console.log('[DEBUG UserProfile] Produtos recebidos:', products, 'tipo:', Array.isArray(products) ? 'array' : typeof products)
           // Garante que seja um array
           return Array.isArray(products) ? products : []
         }).catch((err) => {
-          console.error('Erro ao buscar produtos do usuário:', err)
           return []
         })
       ])
@@ -62,25 +56,10 @@ const UserProfile = () => {
       // Garante que products seja um array
       const productsArray = Array.isArray(products) ? products : (products ? [products] : [])
       
-      console.log('[DEBUG UserProfile] Dados recebidos:', {
-        userData: userData ? {
-          _id: userData._id,
-          name: userData.name,
-          profilePic: userData.profilePic,
-          isFriend: userData.isFriend,
-          isOwnProfile: userData.isOwnProfile,
-          friendRequestStatus: userData.friendRequestStatus
-        } : null,
-        productsCount: productsArray.length,
-        productsType: Array.isArray(products) ? 'array' : typeof products
-      })
-      
       if (userData) {
-        console.log('[DEBUG UserProfile] Definindo profileUser:', userData)
         setProfileUser(userData)
         setUserProducts(productsArray)
       } else {
-        console.log('[DEBUG UserProfile] userData é null, definindo erro')
         // Se não encontrou o usuário, garante que products seja array vazio
         setUserProducts([])
         if (!error) {

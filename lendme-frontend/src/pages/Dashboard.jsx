@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Home, Search, Plus, MessageCircle, Heart, RefreshCw, Handshake } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import ProductCard from '../components/ProductCard'
+import PostCard from '../components/PostCard'
 import BottomNavigation from '../components/BottomNavigation'
 import { productService } from '../services/productService'
 import { authService } from '../services/authService'
@@ -10,7 +11,7 @@ import { getImageUrl } from '../utils/imageUtils'
 
 const Dashboard = () => {
   const { user } = useAuth()
-  const [products, setProducts] = useState([])
+  const [products, setProducts] = useState([]) // Agora contém produtos, posts e outros itens do feed
   const [loading, setLoading] = useState(true)
   const [friends, setFriends] = useState([])
   const [displayedFriends, setDisplayedFriends] = useState([])
@@ -18,7 +19,6 @@ const Dashboard = () => {
   // Função para processar amigos com a mesma lógica do feed (randomização + ordenação por data)
   const processFriendsForDisplay = (friendsList) => {
     if (!friendsList || friendsList.length === 0) {
-      console.log('[Dashboard] processFriendsForDisplay: lista vazia')
       return []
     }
     
@@ -139,12 +139,9 @@ const Dashboard = () => {
       // GARANTE randomização final - aplica shuffle adicional SEMPRE
       // Isso garante que mesmo com poucos amigos, a ordem mude
       if (processedFriends.length > 1) {
-        console.log('[Dashboard] Aplicando shuffle final para garantir randomização...')
         processedFriends = shuffleArray(processedFriends)
       }
       
-      console.log('[Dashboard] processFriendsForDisplay: processados', processedFriends.length, 'de', friendsList.length)
-      console.log('[Dashboard] Ordem final dos amigos:', processedFriends.map(f => f.name || f._id).join(' -> '))
       return processedFriends
     } catch (error) {
       console.error('[Dashboard] Erro ao processar amigos:', error)
@@ -154,14 +151,10 @@ const Dashboard = () => {
   }
 
   useEffect(() => {
-    console.log('[Dashboard] useEffect - user:', user?._id)
     loadProducts()
     if (user) {
-      console.log('[Dashboard] Chamando loadFriends...')
       // Força recarregamento dos amigos a cada vez para garantir randomização
       loadFriends()
-    } else {
-      console.log('[Dashboard] Usuário não disponível, não carregando amigos')
     }
   }, [user])
   
@@ -169,7 +162,6 @@ const Dashboard = () => {
   useEffect(() => {
     const handleFocus = () => {
       if (user) {
-        console.log('[Dashboard] Página recebeu foco, recarregando amigos...')
         loadFriends()
       }
     }
@@ -177,7 +169,7 @@ const Dashboard = () => {
     return () => window.removeEventListener('focus', handleFocus)
   }, [user])
 
-  // Recarrega produtos quando a página recebe foco (útil após adicionar produto)
+  // Recarrega produtos e posts quando a página recebe foco (útil após adicionar produto/post)
   useEffect(() => {
     const handleFocus = () => {
       loadProducts()
@@ -199,59 +191,51 @@ const Dashboard = () => {
 
   const loadProducts = async () => {
     try {
-      setLoading(true)
       const data = await productService.getProducts()
-      console.log('Produtos carregados no feed:', data?.length || 0, 'produtos')
       if (data && Array.isArray(data)) {
+        // Mantém tudo em um único array para preservar a ordem randomizada do backend
+        // Não separa produtos e posts - renderiza na ordem que veio
         setProducts(data)
       } else {
-        console.warn('Resposta inválida do servidor:', data)
         setProducts([])
       }
     } catch (error) {
-      console.error('Erro ao carregar produtos:', error)
       setProducts([])
     } finally {
       setLoading(false)
     }
   }
 
+  const loadPosts = async () => {
+    // Posts agora vêm junto com produtos do endpoint /products
+    // Esta função não é mais necessária, mas mantida para compatibilidade
+  }
+
   const loadFriends = async () => {
     if (!user) {
-      console.log('[Dashboard] loadFriends: usuário não autenticado')
       return
     }
     try {
-      console.log('[Dashboard] ===== INICIANDO CARREGAMENTO DE AMIGOS =====')
       const friendsData = await authService.getFriends()
       const friendsArray = Array.isArray(friendsData) ? friendsData : []
-      console.log('[Dashboard] Amigos recebidos do backend:', friendsArray.length)
-      console.log('[Dashboard] Ordem do backend:', friendsArray.map(f => f.name || f._id).join(', '))
       
       // Sempre define friends primeiro
       setFriends(friendsArray)
       
       // Aplica a mesma lógica de randomização e ordenação do feed
       if (friendsArray.length > 0) {
-        console.log('[Dashboard] Chamando processFriendsForDisplay...')
         const processedFriends = processFriendsForDisplay(friendsArray)
-        console.log('[Dashboard] Amigos após processamento:', processedFriends.length)
-        console.log('[Dashboard] Ordem após processamento:', processedFriends.map(f => f.name || f._id).join(', '))
         
         // Garante que sempre há uma lista para exibir
         if (processedFriends.length > 0) {
           setDisplayedFriends(processedFriends)
         } else {
-          console.warn('[Dashboard] Processamento retornou array vazio, usando lista original')
           setDisplayedFriends(friendsArray)
         }
       } else {
-        console.log('[Dashboard] Nenhum amigo para processar')
         setDisplayedFriends([])
       }
-      console.log('[Dashboard] ===== FIM DO CARREGAMENTO DE AMIGOS =====')
     } catch (error) {
-      console.error('[Dashboard] Erro ao carregar amigos:', error)
       setFriends([])
       setDisplayedFriends([])
     }
@@ -326,7 +310,6 @@ const Dashboard = () => {
           {/* Amigos */}
           {(() => {
             const friendsToShow = displayedFriends.length > 0 ? displayedFriends : friends
-            console.log('[Dashboard] Renderizando amigos. displayedFriends:', displayedFriends.length, 'friends:', friends.length, 'total:', friendsToShow.length, 'dados:', friendsToShow)
             return friendsToShow.slice(0, 10).map((friend) => {
             const friendId = friend._id?.toString() || friend._id
             const friendName = friend.name || 'Usuário'
@@ -371,13 +354,13 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Feed de Produtos */}
+      {/* Feed de Produtos e Posts */}
       <main className="max-w-2xl mx-auto px-4 py-4">
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
           </div>
-        ) : products.length === 0 ? (
+        ) : products.length === 0 && posts.length === 0 ? (
           <div className="text-center py-12">
             <div className="mb-6">
               <div className="w-24 h-24 bg-slate-800 rounded-full mx-auto mb-4 flex items-center justify-center">
@@ -399,9 +382,45 @@ const Dashboard = () => {
             </div>
           </div>
         ) : (
-          products.map((product) => (
-            <ProductCard key={product._id} product={product} user={product.user} />
-          ))
+          <>
+            {/* Renderiza todos os itens do feed na ordem que vieram do backend (já randomizados) */}
+            {products.map((item) => {
+              // Verifica o tipo do item para renderizar o componente correto
+              if (item.itemType === 'post') {
+                return <PostCard key={`post-${item._id}`} post={item} />;
+              } else if (item.itemType === 'loan_request') {
+                // Renderiza pedido de empréstimo (se houver componente)
+                return null; // Por enquanto, não renderiza pedidos de empréstimo
+              } else {
+                // É um produto (itemType === 'product' ou não tem itemType)
+                return <ProductCard key={`product-${item._id}`} product={item} user={item.user} />;
+              }
+            })}
+            {/* Mensagem quando não há conteúdo */}
+            {products.length === 0 && (
+              <div className="text-center py-12">
+                <div className="mb-6">
+                  <div className="w-24 h-24 bg-slate-800 rounded-full mx-auto mb-4 flex items-center justify-center">
+                    <Plus size={48} className="text-gray-400" />
+                  </div>
+                </div>
+                <h2 className="text-xl font-semibold text-gray-100 mb-2">Feed vazio</h2>
+                <p className="text-gray-400 mb-6">
+                  Adicione produtos, poste fotos/vídeos ou faça amizades para ver conteúdo no feed
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Link to="/create-post" className="btn-primary inline-flex items-center justify-center space-x-2">
+                    <Plus size={20} />
+                    <span>Criar Post</span>
+                  </Link>
+                  <Link to="/add-product" className="btn-secondary inline-flex items-center justify-center space-x-2">
+                    <Plus size={20} />
+                    <span>Adicionar Produto</span>
+                  </Link>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </main>
 

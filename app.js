@@ -80,6 +80,7 @@ app.use('/api', require('./routes/donationMessages'));
 app.use('/api', require('./routes/loans'));
 app.use('/api', require('./routes/loanMessages'));
 app.use('/api', require('./routes/messages'));
+app.use('/api', require('./routes/posts'));
 
 
 

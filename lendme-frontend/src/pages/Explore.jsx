@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Search, Filter } from 'lucide-react'
 import ProductCard from '../components/ProductCard'
+import PostCard from '../components/PostCard'
 import BottomNavigation from '../components/BottomNavigation'
 import { productService } from '../services/productService'
 
@@ -90,12 +91,16 @@ const Explore = () => {
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-400">Nenhum produto encontrado</p>
+            <p className="text-gray-400">Nenhum resultado encontrado</p>
           </div>
         ) : (
-          products.map((product) => (
-            <ProductCard key={product._id} product={product} user={product.user} />
-          ))
+          products.map((item) => {
+            if (item.itemType === 'post') {
+              return <PostCard key={`post-${item._id}`} post={item} />;
+            } else {
+              return <ProductCard key={`product-${item._id}`} product={item} user={item.user} />;
+            }
+          })
         )}
       </main>
 

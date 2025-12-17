@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const db = require('../db');
 const { ObjectId } = require('mongodb');
 
@@ -88,9 +89,11 @@ router.get('/products', ensureApiAuthenticated, async (req, res) => {
       return fid?.toString ? fid.toString() : fid;
     });
     
+    // Inclui o próprio usuário para buscar posts
+    const allFriendIds = [...friendIds, userId];
+    
     // Busca todos os produtos disponíveis
     const allProducts = await db.getProducts(null, filters);
-    console.log(`[Feed] Total de produtos no banco: ${allProducts.length}`);
     
     // Busca trocas aceitas para excluir produtos envolvidos (mas não os trocados)
     const allTrades = await db.getTrades(userId);
@@ -100,7 +103,6 @@ router.get('/products', ensureApiAuthenticated, async (req, res) => {
       if (t.fromProductId) productIdsInAcceptedTrades.add(t.fromProductId.toString());
       if (t.toProductId) productIdsInAcceptedTrades.add(t.toProductId.toString());
     });
-    console.log(`[Feed] Produtos em trocas aceitas: ${productIdsInAcceptedTrades.size}`);
     
     // Filtra produtos: próprios produtos, produtos de amigos ou usuários públicos
     // Por padrão, mostra TODOS os produtos públicos para permitir interação
@@ -110,7 +112,6 @@ router.get('/products', ensureApiAuthenticated, async (req, res) => {
     
     const visibleProducts = allProducts.filter(p => {
       if (!p || !p.userId) {
-        console.log('[Feed] Produto sem userId:', p?._id);
         return false;
       }
       
@@ -153,7 +154,6 @@ router.get('/products', ensureApiAuthenticated, async (req, res) => {
       } else {
         // Se não conseguiu buscar o usuário, assume público para não bloquear
         // Isso garante que produtos apareçam mesmo se houver problema na busca do usuário
-        console.log(`[Feed] Produto ${p._id} sem user, assumindo público`);
         return true;
       }
       
@@ -165,6 +165,7 @@ router.get('/products', ensureApiAuthenticated, async (req, res) => {
     const loanFeedItems = loanRequests.map(loan => ({
       _id: loan._id,
       type: 'loan_request',
+      itemType: 'loan_request',
       name: `${loan.requester?.name || 'Usuário'} precisa de ${loan.itemName || 'um item'}`,
       description: `Pedido de empréstimo`,
       userId: loan.requesterId,
@@ -174,51 +175,113 @@ router.get('/products', ensureApiAuthenticated, async (req, res) => {
       loan: loan,
     }));
 
-    // Combina produtos e pedidos de empréstimo
-    const allFeedItems = [...visibleProducts, ...loanFeedItems];
+    // Busca posts de amigos e do próprio usuário (com filtro de busca se houver)
+    const postFilters = {};
+    if (search) postFilters.search = search;
+    const posts = await db.getPosts(allFriendIds, postFilters);
+    const now = new Date();
+    const validPosts = [];
+    
+    // Filtra posts expirados
+    for (const post of posts) {
+      if (post.expiresAt && new Date(post.expiresAt) < now) {
+        // Post expirado - remove do banco e arquivo
+        await db.deletePost(post._id);
+        if (post.mediaUrl && fs.existsSync(path.join(__dirname, '..', post.mediaUrl))) {
+          fs.unlinkSync(path.join(__dirname, '..', post.mediaUrl));
+        }
+      } else {
+        validPosts.push({
+          ...post,
+          itemType: 'post',
+        });
+      }
+    }
+
+    // Combina produtos, posts e pedidos de empréstimo
+    const allFeedItems = [
+      ...visibleProducts.map(p => ({ ...p, itemType: 'product' })),
+      ...validPosts,
+      ...loanFeedItems
+    ];
     
     // Define o limite de tempo para considerar um post como "novo" (24 horas)
-    const now = new Date();
+    // Reutiliza a variável 'now' já declarada acima
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     
-    console.log(`[Feed] Data atual: ${now.toISOString()}, 24h atrás: ${oneDayAgo.toISOString()}`);
+    // Busca posts que o usuário já viu
+    const seenPostIds = await db.getSeenPostIds(userId);
     
-    // Separa posts novos (últimas 24h) dos mais antigos
-    const newPosts = [];
-    const oldPosts = [];
+    // Separa posts novos em: não vistos e já vistos
+    // E separa posts antigos
+    const newPostsUnseen = []; // Novos não vistos - aparecem primeiro
+    const newPostsSeen = [];   // Novos já vistos - randomizados
+    const oldPosts = [];        // Antigos - randomizados
     
     allFeedItems.forEach(item => {
       const itemDate = new Date(item.createdAt || 0);
-      if (itemDate >= oneDayAgo) {
-        newPosts.push(item);
+      const itemId = item._id?.toString() || item._id;
+      const isSeen = seenPostIds.has(itemId);
+      
+      // Verifica se é um post (tem itemType === 'post') ou um produto/outro tipo
+      const isPost = item.itemType === 'post';
+      
+      if (isPost && itemDate >= oneDayAgo) {
+        // É um POST novo (últimas 24h)
+        if (isSeen) {
+          newPostsSeen.push(item);
+        } else {
+          newPostsUnseen.push(item);
+        }
       } else {
+        // É um post antigo OU um produto/outro tipo - sempre randomizado
+        // Posts antigos e produtos nunca ficam fixos no topo
         oldPosts.push(item);
       }
     });
     
-    console.log(`[Feed] Separação: ${newPosts.length} novos, ${oldPosts.length} antigos`);
+    // Se não há posts novos não vistos, randomiza os novos já vistos junto com os antigos
+    // Isso garante que sempre haja randomização quando há conteúdo
     
     // Função auxiliar para randomizar array usando Fisher-Yates shuffle
     const shuffleArray = (arr) => {
       if (arr.length <= 1) return arr;
       const shuffled = [...arr]; // Cria cópia para não modificar o original
       
-      // Primeiro shuffle - Fisher-Yates (de trás para frente)
+      // Usa timestamp como seed adicional para garantir randomização diferente a cada requisição
+      const seed = Date.now() % 1000;
+      
+      // Primeiro shuffle - Fisher-Yates (de trás para frente) com seed
       for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        const randomValue = Math.random() * (seed + 1) + seed;
+        const j = Math.floor(randomValue % (i + 1));
+        const temp = shuffled[i];
+        shuffled[i] = shuffled[j];
+        shuffled[j] = temp;
       }
       
       // Segundo shuffle para garantir melhor distribuição
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        const temp = shuffled[i];
+        shuffled[i] = shuffled[j];
+        shuffled[j] = temp;
       }
       
       // Terceiro shuffle usando uma abordagem diferente (de frente para trás)
       for (let i = 0; i < shuffled.length - 1; i++) {
         const j = Math.floor(Math.random() * (shuffled.length - i)) + i;
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        const temp = shuffled[i];
+        shuffled[i] = shuffled[j];
+        shuffled[j] = temp;
+      }
+      
+      // Quarto shuffle adicional para garantir variação máxima
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const temp = shuffled[i];
+        shuffled[i] = shuffled[j];
+        shuffled[j] = temp;
       }
       
       return shuffled;
@@ -226,76 +289,56 @@ router.get('/products', ensureApiAuthenticated, async (req, res) => {
     
     let feedItems = [];
     
-    // Se há posts novos E antigos: novos primeiro (ordenados por data), depois antigos (randomizados)
-    if (newPosts.length > 0 && oldPosts.length > 0) {
-      // Ordena posts novos por data (mais recente primeiro)
-      newPosts.sort((a, b) => {
+    // Se há posts novos não vistos, pega apenas o mais recente para aparecer primeiro
+    // Os demais novos não vistos são randomizados junto com os outros
+    let topNewUnseen = [];
+    let restNewUnseen = [];
+    
+    if (newPostsUnseen.length > 0) {
+      // Ordena por data (mais recente primeiro)
+      newPostsUnseen.sort((a, b) => {
         const dateA = new Date(a.createdAt || 0);
         const dateB = new Date(b.createdAt || 0);
         return dateB - dateA;
       });
       
-      // Randomiza posts antigos
-      const shuffledOldPosts = shuffleArray(oldPosts);
-      console.log(`[Feed] Randomizando ${oldPosts.length} posts antigos...`);
-      
-      feedItems = [...newPosts, ...shuffledOldPosts];
+      // Pega apenas o mais recente para aparecer primeiro
+      topNewUnseen = newPostsUnseen.slice(0, 1);
+      // O resto dos novos não vistos vai para randomização
+      restNewUnseen = newPostsUnseen.slice(1);
     }
-    // Se TODOS são novos: randomiza todos (mas mantém prioridade para os mais recentes)
-    else if (newPosts.length > 0 && oldPosts.length === 0) {
-      console.log(`[Feed] Todos os posts são novos (${newPosts.length}). Randomizando todos...`);
-      
-      // Ordena primeiro por data para dar prioridade aos mais recentes
-      newPosts.sort((a, b) => {
-        const dateA = new Date(a.createdAt || 0);
-        const dateB = new Date(b.createdAt || 0);
-        return dateB - dateA;
-      });
-      
-      // Se há mais de 1 post, randomiza mantendo uma tendência de prioridade para os mais recentes
-      if (newPosts.length > 1) {
-        // Pega os 3 mais recentes e randomiza o resto
-        const topRecent = newPosts.slice(0, Math.min(3, newPosts.length));
-        const rest = newPosts.slice(Math.min(3, newPosts.length));
-        
-        // Randomiza o resto
-        const shuffledRest = shuffleArray(rest);
-        
-        // Combina: top recentes primeiro, depois o resto randomizado
-        feedItems = [...topRecent, ...shuffledRest];
-        
-        // Randomiza a ordem final também para garantir variação
-        feedItems = shuffleArray(feedItems);
-      } else {
-        feedItems = newPosts;
+    
+    // Combina todos os itens que devem ser randomizados:
+    // - Novos não vistos (exceto o mais recente, se houver)
+    // - Novos já vistos
+    // - Antigos
+    const allRandomizableItems = [...restNewUnseen, ...newPostsSeen, ...oldPosts];
+    
+    // Aplica randomização múltipla para garantir máxima variação
+    let finalRandomized = [];
+    if (allRandomizableItems.length > 0) {
+      finalRandomized = allRandomizableItems;
+      // Aplica shuffle múltiplas vezes para garantir variação
+      for (let i = 0; i < 10; i++) {
+        finalRandomized = shuffleArray(finalRandomized);
       }
     }
-    // Se TODOS são antigos: randomiza todos
-    else if (oldPosts.length > 0 && newPosts.length === 0) {
-      console.log(`[Feed] Todos os posts são antigos (${oldPosts.length}). Randomizando todos...`);
-      feedItems = shuffleArray(oldPosts);
-    }
-    // Caso vazio
-    else {
-      feedItems = [];
+    
+    // Combina na ordem: mais recente não visto (primeiro, SE HOUVER) -> todos os outros (randomizados)
+    // Se não há posts novos não vistos, todos são randomizados sem nenhum fixo
+    if (topNewUnseen.length > 0) {
+      feedItems = [...topNewUnseen, ...finalRandomized];
+    } else {
+      // Se não há posts novos não vistos, TODOS são randomizados (sem nenhum fixo)
+      feedItems = finalRandomized;
     }
     
-    console.log(`[Feed] Ordem final: ${newPosts.length} novos + ${oldPosts.length} antigos (randomizados)`);
-    if (oldPosts.length > 0) {
-      const firstThreeIds = oldPosts.slice(0, 3).map(p => p._id || p.name || 'sem-id');
-      console.log(`[Feed] Primeiros 3 posts antigos (após randomização):`, firstThreeIds);
-    }
-
-    console.log(`[Feed] Produtos visíveis: ${visibleProducts.length} de ${allProducts.length} para usuário ${userIdStr}`);
-    console.log(`[Feed] Pedidos de empréstimo: ${loanFeedItems.length}`);
-    console.log(`[Feed] Amigos: ${friendIds.length}`);
-    console.log(`[Feed] Posts novos (últimas 24h): ${newPosts.length}, Posts antigos (randomizados): ${oldPosts.length}`);
-    
-    // Adiciona headers para evitar cache
+    // Adiciona headers para evitar cache e timestamp único
     res.set({
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
-      'Expires': '0'
+      'Expires': '0',
+      'X-Timestamp': Date.now().toString()
     });
     
     return res.json(feedItems);
@@ -314,10 +357,6 @@ router.get('/products/my', ensureApiAuthenticated, async (req, res) => {
     // - O produto que o usuário DEU não aparece mais (userId mudou)
     // - O produto que o usuário RECEBEU aparece (userId agora é dele)
     const products = await db.getProducts(userId);
-    console.log(`[My Products] Usuário ${userId} tem ${products.length} produtos`);
-    products.forEach(p => {
-      console.log(`[My Products] - ${p.name} (${p._id}), status: ${p.status}, userId: ${p.userId}`);
-    });
     return res.json(products);
   } catch (err) {
     console.error('Erro ao listar produtos:', err);
@@ -352,21 +391,8 @@ router.get('/users/:userId/products', ensureApiAuthenticated, async (req, res) =
       return friendId.toString();
     });
     
-    console.log('[DEBUG getUserProducts] Verificando amizade:', {
-      currentUserId: normalizedCurrentUserId,
-      targetUserId: normalizedUserId,
-      friendsCount: friends.length,
-      friendIds: friendIds
-    });
-    
     // Compara os IDs de forma mais robusta
     const isFriend = friendIds.includes(normalizedUserId);
-    
-    if (isFriend) {
-      console.log('[DEBUG getUserProducts] ✓ Amigo encontrado!');
-    } else {
-      console.log('[DEBUG getUserProducts] ✗ Não é amigo');
-    }
     
     const isOwnProfile = normalizedCurrentUserId === normalizedUserId;
     
@@ -374,33 +400,18 @@ router.get('/users/:userId/products', ensureApiAuthenticated, async (req, res) =
     const currentUser = await db.findUser(currentUserId);
     const isAdmin = currentUser?.profile === 2;
     
-    console.log('[DEBUG getUserProducts] Verificação de acesso:', {
-      isPublic,
-      isFriend,
-      isOwnProfile,
-      isAdmin,
-      currentUserProfile: currentUser?.profile,
-      canAccess: isPublic || isFriend || isOwnProfile || isAdmin
-    });
-    
     // Admin pode ver todos os produtos
     // Se não é público e não é amigo e não é o próprio perfil e não é admin, retorna erro
     if (!isPublic && !isFriend && !isOwnProfile && !isAdmin) {
-      console.log('[DEBUG getUserProducts] Acesso negado - perfil privado');
       return res.status(403).json({ message: 'Este perfil é privado' });
     }
     
-    console.log('[DEBUG getUserProducts] Acesso permitido');
-    
     // Busca apenas produtos disponíveis do usuário
     const products = await db.getProducts(userId);
-    console.log('[DEBUG getUserProducts] Produtos retornados:', products?.length || 0, 'tipo:', Array.isArray(products) ? 'array' : typeof products);
     
     // Garante que products seja um array
     const productsArray = Array.isArray(products) ? products : [];
     const availableProducts = productsArray.filter(p => p.status === 'available');
-    
-    console.log('[DEBUG getUserProducts] Produtos disponíveis:', availableProducts.length);
     
     return res.json(availableProducts);
   } catch (err) {

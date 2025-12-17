@@ -189,7 +189,6 @@ async function insertAutoText(autoText) {
 
 async function findAutoTextById(id, userId) {
     try {
-        console.log(`Buscando auto texto pelo ID: ${id}, userId: ${userId}`); // Log para depuração
 
         // Valida se o ID é uma string válida de 24 caracteres hexadecimais
         if (!id || typeof id !== 'string' || id.length !== 24 || !/^[0-9a-fA-F]{24}$/.test(id)) {
@@ -208,7 +207,6 @@ async function findAutoTextById(id, userId) {
             userId: userId
         });
 
-        console.log('Auto texto encontrado:', autoText); // Log para depuração
         return autoText;
     } catch (error) {
         console.error('Erro na função findAutoTextById:', error); // Log para depuração
@@ -272,43 +270,17 @@ async function addFriendRelation(userId1, userId2) {
     const id1 = ObjectId.createFromHexString(userId1.toString());
     const id2 = ObjectId.createFromHexString(userId2.toString());
 
-    console.log('[DEBUG addFriendRelation] Adicionando amizade:', {
-        userId1: userId1.toString(),
-        userId2: userId2.toString(),
-        id1: id1.toString(),
-        id2: id2.toString()
-    });
-
     // Adiciona id2 ao array de amigos de id1
-    const result1 = await users.updateOne(
+    await users.updateOne(
         { _id: id1 },
         { $addToSet: { friends: id2 } }
     );
-    console.log('[DEBUG addFriendRelation] Resultado update1:', {
-        matched: result1.matchedCount,
-        modified: result1.modifiedCount
-    });
 
     // Adiciona id1 ao array de amigos de id2
-    const result2 = await users.updateOne(
+    await users.updateOne(
         { _id: id2 },
         { $addToSet: { friends: id1 } }
     );
-    console.log('[DEBUG addFriendRelation] Resultado update2:', {
-        matched: result2.matchedCount,
-        modified: result2.modifiedCount
-    });
-
-    // Verifica se foi adicionado corretamente
-    const user1 = await users.findOne({ _id: id1 });
-    const user2 = await users.findOne({ _id: id2 });
-    
-    console.log('[DEBUG addFriendRelation] Verificação final:', {
-        user1Friends: user1?.friends?.length || 0,
-        user2Friends: user2?.friends?.length || 0,
-        user1HasId2: user1?.friends?.some(f => f.toString() === id2.toString()),
-        user2HasId1: user2?.friends?.some(f => f.toString() === id1.toString())
-    });
 }
 
 async function getFriends(userId) {
@@ -317,16 +289,12 @@ async function getFriends(userId) {
     const user = await conn.collection("users").findOne({ _id: id });
     
     if (!user) {
-        console.log(`[DEBUG getFriends] Usuário não encontrado: ${userId}`);
         return [];
     }
     
     if (!user.friends || user.friends.length === 0) {
-        console.log(`[DEBUG getFriends] Usuário ${userId} não tem amigos no array friends`);
         return [];
     }
-    
-    console.log(`[DEBUG getFriends] Usuário ${userId} tem ${user.friends.length} amigos no array`);
     
     // Converte os IDs do array friends para ObjectId se necessário
     const friendIds = user.friends.map(friendId => {
@@ -342,23 +310,14 @@ async function getFriends(userId) {
         .project({ password: 0 })
         .toArray();
     
-    console.log(`[DEBUG getFriends] Encontrados ${friends.length} amigos no banco`);
-    
     // Normaliza os IDs para string e garante que todos os campos necessários estejam presentes
     const normalizedFriends = friends.map(friend => {
         const normalizedId = friend._id?.toString() || friend._id;
-        console.log(`[DEBUG getFriends] Normalizando amigo:`, {
-            originalId: friend._id,
-            normalizedId: normalizedId,
-            name: friend.name
-        });
         return {
             ...friend,
             _id: normalizedId
         };
     });
-    
-    console.log(`[DEBUG getFriends] IDs normalizados:`, normalizedFriends.map(f => f._id));
     
     return normalizedFriends;
 }
@@ -395,14 +354,10 @@ async function getFriendRequests(userId, type = 'received') {
         ? { toUserId: id, status: 'pending' }
         : { fromUserId: id, status: 'pending' };
     
-    console.log(`[DEBUG DB] getFriendRequests - userId: ${userId}, type: ${type}, query:`, JSON.stringify(query));
-    
     const requests = await conn.collection("friendRequests")
         .find(query)
         .sort({ createdAt: -1 })
         .toArray();
-    
-    console.log(`[DEBUG DB] Encontradas ${requests.length} solicitações`);
     
     // Popula informações dos usuários
     // Para 'received': mostra quem enviou (fromUserId)
@@ -443,14 +398,6 @@ async function getFriendRequests(userId, type = 'received') {
             user: user // Mantém compatibilidade com código existente
         };
         
-        console.log(`[DEBUG DB] Solicitação processada:`, {
-            _id: reqResult._id?.toString(),
-            fromUserId: reqResult.fromUserId,
-            toUserId: reqResult.toUserId,
-            type: type,
-            hasUser: !!user
-        });
-        
         return reqResult;
     });
     
@@ -460,19 +407,12 @@ async function getFriendRequests(userId, type = 'received') {
 async function acceptFriendRequest(requestId, fromUserId, toUserId) {
     const conn = await connect();
     
-    console.log('[DEBUG acceptFriendRequest] Aceitando solicitação:', {
-        requestId,
-        fromUserId,
-        toUserId
-    });
-    
     // Atualiza status da solicitação
     const updateResult = await conn.collection("friendRequests").updateOne(
         { _id: ObjectId.createFromHexString(requestId.toString()) },
         { $set: { status: 'accepted', acceptedAt: new Date() } }
     );
     
-    console.log('[DEBUG acceptFriendRequest] Solicitação atualizada:', updateResult.modifiedCount);
     
     // Cria relação de amizade mútua
     await addFriendRelation(fromUserId, toUserId);
@@ -481,10 +421,6 @@ async function acceptFriendRequest(requestId, fromUserId, toUserId) {
     const user1 = await conn.collection("users").findOne({ _id: ObjectId.createFromHexString(fromUserId.toString()) });
     const user2 = await conn.collection("users").findOne({ _id: ObjectId.createFromHexString(toUserId.toString()) });
     
-    console.log('[DEBUG acceptFriendRequest] Verificação pós-adição:', {
-        user1Friends: user1?.friends?.length || 0,
-        user2Friends: user2?.friends?.length || 0
-    });
 }
 
 async function rejectFriendRequest(requestId) {
@@ -572,15 +508,11 @@ async function getProducts(userId = null, filters = {}) {
         }
     }
     
-    console.log(`[getProducts] Query:`, JSON.stringify(query, null, 2));
-    
     const products = await conn.collection("products")
         .find(query)
         .sort({ createdAt: -1 })
         .limit(filters.limit || 50)
         .toArray();
-    
-    console.log(`[getProducts] Encontrados ${products.length} produtos para userId: ${userId || 'todos'}`);
     
     // Popula informações dos usuários
     const userIds = [...new Set(products.map(p => p.userId.toString()))];
@@ -955,6 +887,7 @@ async function createNotification(notification) {
     return conn.collection("notifications").insertOne({
         ...notification,
         userId: ObjectId.createFromHexString(notification.userId.toString()),
+        fromUserId: notification.fromUserId ? ObjectId.createFromHexString(notification.fromUserId.toString()) : null,
         read: false,
         createdAt: new Date(),
     });
@@ -1062,14 +995,10 @@ async function getDonationRequests(userId, type = 'received') {
             // para que o receptor possa ver e confirmar
           };
     
-    console.log(`[DEBUG DB] getDonationRequests - userId: ${userId}, type: ${type}, query:`, JSON.stringify(query));
-    
     const donations = await conn.collection("donations")
         .find(query)
         .sort({ createdAt: -1 })
         .toArray();
-    
-    console.log(`[DEBUG DB] Encontradas ${donations.length} doações`);
     
     // Popula produtos e usuários
     const productIds = [...new Set(donations.map(d => d.productId))];
@@ -1834,6 +1763,266 @@ async function getConversationMessages(conversationId) {
     }));
 }
 
+// ======= Funções relacionadas a posts de mídia =======
+
+async function createPost(post) {
+    const conn = await connect();
+    const result = await conn.collection("posts").insertOne({
+        ...post,
+        userId: ObjectId.createFromHexString(post.userId.toString()),
+        createdAt: new Date(),
+        likes: [],
+        likesCount: 0,
+        commentsCount: 0,
+    });
+    return result.insertedId;
+}
+
+async function getPost(postId) {
+    const conn = await connect();
+    const post = await conn.collection("posts").findOne({
+        _id: ObjectId.createFromHexString(postId.toString())
+    });
+    
+    if (!post) return null;
+    
+    // Popula informações do usuário
+    const user = await conn.collection("users").findOne(
+        { _id: post.userId },
+        { projection: { password: 0 } }
+    );
+    
+    // Conta comentários do post
+    const commentsCount = await conn.collection("postComments").countDocuments({
+        postId: ObjectId.createFromHexString(postId.toString())
+    });
+    
+    const likes = post.likes || [];
+    const likesArr = likes.map(id => id?.toString ? id.toString() : id);
+    
+    return {
+        ...post,
+        _id: post._id?.toString(),
+        userId: post.userId?.toString(),
+        user: user ? {
+            ...user,
+            _id: user._id?.toString(),
+        } : null,
+        likes: likesArr,
+        likesCount: likesArr.length,
+        commentsCount: commentsCount,
+    };
+}
+
+async function getPosts(userIds, filters = {}) {
+    const conn = await connect();
+    const userIdsObjectId = userIds.map(id => ObjectId.createFromHexString(id.toString()));
+    
+    const query = {
+        userId: { $in: userIdsObjectId },
+        expiresAt: { $gt: new Date() } // Apenas posts não expirados
+    };
+    
+    // Adiciona filtro de busca se fornecido
+    if (filters.search) {
+        query.$or = [
+            { caption: new RegExp(filters.search, 'i') }
+        ];
+    }
+    
+    const posts = await conn.collection("posts")
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray();
+    
+    // Popula informações dos usuários
+    const userIdsSet = new Set(posts.map(p => p.userId.toString()));
+    const users = userIdsSet.size > 0
+        ? await conn.collection("users")
+            .find({ _id: { $in: Array.from(userIdsSet).map(id => ObjectId.createFromHexString(id)) } })
+            .project({ password: 0 })
+            .toArray()
+        : [];
+    
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+    
+    // Conta comentários por post
+    const postIds = posts.map(p => p._id);
+    let commentsCountMap = new Map();
+    if (postIds.length > 0) {
+        const commentsAgg = await conn.collection("postComments").aggregate([
+            { $match: { postId: { $in: postIds } } },
+            { $group: { _id: "$postId", count: { $sum: 1 } } }
+        ]).toArray();
+        commentsCountMap = new Map(
+            commentsAgg.map(c => [c._id.toString(), c.count])
+        );
+    }
+
+    return posts.map(post => {
+        const likes = post.likes || [];
+        const likesArr = likes.map(id => id?.toString ? id.toString() : id);
+        return {
+            ...post,
+            _id: post._id?.toString(),
+            userId: post.userId?.toString(),
+            user: userMap.get(post.userId.toString()) ? {
+                ...userMap.get(post.userId.toString()),
+                _id: userMap.get(post.userId.toString())._id?.toString(),
+            } : null,
+            likes: likesArr,
+            likesCount: likesArr.length,
+            commentsCount: commentsCountMap.get(post._id.toString()) || 0,
+        };
+    });
+}
+
+async function deletePost(postId) {
+    const conn = await connect();
+    return conn.collection("posts").deleteOne({
+        _id: ObjectId.createFromHexString(postId.toString())
+    });
+}
+
+async function markPostAsSeen(postId, userId) {
+    const conn = await connect();
+    const postObjectId = ObjectId.createFromHexString(postId.toString());
+    const userObjectId = ObjectId.createFromHexString(userId.toString());
+    
+    // Insere ou atualiza a visualização (usando upsert para evitar duplicatas)
+    await conn.collection("postViews").updateOne(
+        { postId: postObjectId, userId: userObjectId },
+        { 
+            $set: { 
+                viewedAt: new Date(),
+                postId: postObjectId,
+                userId: userObjectId
+            } 
+        },
+        { upsert: true }
+    );
+}
+
+async function getSeenPostIds(userId) {
+    const conn = await connect();
+    const userObjectId = ObjectId.createFromHexString(userId.toString());
+    
+    const views = await conn.collection("postViews")
+        .find({ userId: userObjectId })
+        .toArray();
+    
+    return new Set(views.map(v => v.postId.toString()));
+}
+
+// Curtidas de post
+async function togglePostLike(postId, userId) {
+    const conn = await connect();
+    const pid = ObjectId.createFromHexString(postId.toString());
+    const uid = ObjectId.createFromHexString(userId.toString());
+
+    const post = await conn.collection("posts").findOne({ _id: pid });
+    if (!post) return null;
+
+    const likes = post.likes || [];
+    const hasLiked = likes.some(id => {
+        const idStr = id?.toString ? id.toString() : String(id);
+        return idStr === userId.toString();
+    });
+
+    if (hasLiked) {
+        await conn.collection("posts").updateOne(
+            { _id: pid },
+            { $pull: { likes: uid } }
+        );
+    } else {
+        await conn.collection("posts").updateOne(
+            { _id: pid },
+            { $addToSet: { likes: uid } }
+        );
+    }
+
+    const updated = await conn.collection("posts").findOne({ _id: pid });
+    const updatedLikes = (updated.likes || []).map(id => id?.toString ? id.toString() : id);
+
+    return {
+        ...updated,
+        likes: updatedLikes,
+        likesCount: updatedLikes.length,
+        liked: !hasLiked,
+    };
+}
+
+// Comentários de post
+async function createPostComment(commentData) {
+    const conn = await connect();
+    const postId = ObjectId.createFromHexString(commentData.postId.toString());
+    const userId = ObjectId.createFromHexString(commentData.userId.toString());
+
+    const comment = {
+        postId: postId,
+        userId: userId,
+        text: commentData.text,
+        createdAt: new Date(),
+    };
+
+    const result = await conn.collection("postComments").insertOne(comment);
+    
+    // Atualiza contador de comentários no post
+    await conn.collection("posts").updateOne(
+        { _id: postId },
+        { $inc: { commentsCount: 1 } }
+    );
+
+    // Popula informações do usuário
+    const user = await conn.collection("users").findOne(
+        { _id: userId },
+        { projection: { password: 0 } }
+    );
+
+    return {
+        ...comment,
+        _id: result.insertedId?.toString(),
+        postId: commentData.postId,
+        userId: commentData.userId,
+        user: user ? {
+            _id: user._id?.toString() || user._id,
+            name: user.name || 'Usuário',
+            profilePic: user.profilePic || null,
+        } : null,
+    };
+}
+
+async function getPostComments(postId) {
+    const conn = await connect();
+    const pid = ObjectId.createFromHexString(postId.toString());
+
+    const comments = await conn.collection("postComments")
+        .find({ postId: pid })
+        .sort({ createdAt: 1 })
+        .toArray();
+
+    // Popula informações dos usuários
+    const userIds = [...new Set(comments.map(c => c.userId.toString()))];
+    const users = await conn.collection("users")
+        .find({ _id: { $in: userIds.map(id => ObjectId.createFromHexString(id)) } })
+        .project({ password: 0 })
+        .toArray();
+
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+
+    return comments.map(comment => ({
+        ...comment,
+        _id: comment._id?.toString(),
+        postId: postId,
+        userId: comment.userId?.toString(),
+        user: userMap.get(comment.userId.toString()) ? {
+            _id: userMap.get(comment.userId.toString())._id?.toString(),
+            name: userMap.get(comment.userId.toString()).name || 'Usuário',
+            profilePic: userMap.get(comment.userId.toString()).profilePic || null,
+        } : null,
+    }));
+}
+
 module.exports = {
     PAGE_SIZE,
     connect,
@@ -1932,4 +2121,14 @@ module.exports = {
     getUserConversations,
     createConversationMessage,
     getConversationMessages,
+    // Posts
+    createPost,
+    getPost,
+    getPosts,
+    deletePost,
+    markPostAsSeen,
+    getSeenPostIds,
+    togglePostLike,
+    createPostComment,
+    getPostComments,
 };

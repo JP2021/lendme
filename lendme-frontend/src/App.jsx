@@ -26,6 +26,7 @@ import UserProfile from './pages/UserProfile'
 import Conversation from './pages/Conversation'
 import Messages from './pages/Messages'
 import Donations from './pages/Donations'
+import CreatePost from './pages/CreatePost'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 
@@ -52,6 +53,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <AddProduct />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/create-post"
+              element={
+                <ProtectedRoute>
+                  <CreatePost />
                 </ProtectedRoute>
               }
             />

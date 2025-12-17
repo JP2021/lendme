@@ -31,6 +31,63 @@ router.post('/loans/request', ensureApiAuthenticated, async (req, res) => {
   }
 });
 
+// Solicitar empréstimo de um produto específico
+router.post('/loans/request-product', ensureApiAuthenticated, async (req, res) => {
+  try {
+    const requesterId = req.user._id.toString();
+    const { productId } = req.body;
+
+    if (!productId) {
+      return res.status(400).json({ message: 'ID do produto é obrigatório' });
+    }
+
+    // Busca o produto
+    const product = await db.getProduct(productId);
+    if (!product) {
+      return res.status(404).json({ message: 'Produto não encontrado' });
+    }
+
+    // Verifica se o produto está disponível para empréstimo
+    if (product.type !== 'loan') {
+      return res.status(400).json({ message: 'Este produto não está disponível para empréstimo' });
+    }
+
+    if (product.status !== 'available') {
+      return res.status(400).json({ message: 'Este produto não está disponível' });
+    }
+
+    // Verifica se não é o próprio dono
+    const productUserId = product.userId?.toString ? product.userId.toString() : product.userId;
+    if (productUserId === requesterId) {
+      return res.status(400).json({ message: 'Você não pode solicitar empréstimo do seu próprio produto' });
+    }
+
+    // Cria o pedido de empréstimo específico para o produto
+    const loan = await db.createLoanRequest({
+      requesterId,
+      itemName: product.name,
+      productId: productId,
+      lenderId: productUserId, // O dono do produto é o emprestador
+    });
+
+    // Cria notificação para o dono do produto
+    const loanId = loan.insertedId?.toString() || loan._id?.toString() || loan;
+    await db.createNotification({
+      userId: productUserId,
+      fromUserId: requesterId,
+      type: 'loan_request',
+      title: 'Solicitação de empréstimo',
+      message: `${req.user.name || 'Um usuário'} quer pegar emprestado: ${product.name}`,
+      relatedId: loanId,
+    });
+
+    return res.json({ message: 'Solicitação de empréstimo enviada', loan });
+  } catch (err) {
+    console.error('Erro ao solicitar empréstimo:', err);
+    return res.status(500).json({ message: 'Erro ao solicitar empréstimo' });
+  }
+});
+
 // Listar pedidos de empréstimo
 router.get('/loans', ensureApiAuthenticated, async (req, res) => {
   try {
